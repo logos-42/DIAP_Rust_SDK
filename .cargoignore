@@ -1,0 +1,19 @@
+# 排除构建产物
+target/
+Cargo.lock
+
+# 排除文档
+target/doc/
+
+# 排除IDE文件
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 排除操作系统文件
+.DS_Store
+Thumbs.db
+
+# 排除日志文件
+*.log

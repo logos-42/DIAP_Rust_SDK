@@ -1,0 +1,424 @@
+/**
+ * ANP协议自动配置模块 - Rust版本
+ * 提供端口自动分配、DID自动生成、HTTP服务器自动启动等功能
+ */
+
+use serde::{Deserialize, Serialize};
+use anyhow::Result;
+use log::{info, warn};
+use std::sync::Arc;
+use tokio::sync::RwLock;
+
+use crate::http_auto_config::{HTTPAutoConfig, HTTPAutoConfigOptions, HTTPConfig};
+use crate::did_auto_config::{DIDAutoConfig, DIDAutoConfigOptions, DIDConfig, AgentInterface};
+use crate::anp_key_generator::KeyType;
+
+// 类型定义
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AutoConfigOptions {
+    /// 是否自动启动HTTP服务器
+    pub auto_start: Option<bool>,
+    /// 是否自动分配端口
+    pub auto_port: Option<bool>,
+    /// 是否自动生成DID
+    pub auto_did: Option<bool>,
+    /// 发现服务地址
+    pub discovery_service: Option<String>,
+    /// 端口范围
+    pub port_range: Option<(u16, u16)>,
+    /// 智能体名称
+    pub agent_name: Option<String>,
+    /// 自定义接口配置
+    pub interfaces: Option<Vec<AgentInterface>>,
+    /// 日志级别
+    pub log_level: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentConfig {
+    pub did: String,
+    pub port: u16,
+    pub endpoint: String,
+    pub local_ip: String,
+    pub private_key: String,
+    pub did_document: serde_json::Value,
+    pub agent_description: serde_json::Value,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ANPRequest {
+    pub content: Option<String>,
+    pub message: Option<String>,
+    #[serde(flatten)]
+    pub extra: std::collections::HashMap<String, serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ANPResponse {
+    pub response: String,
+    pub timestamp: String,
+    pub did: String,
+    #[serde(flatten)]
+    pub extra: std::collections::HashMap<String, serde_json::Value>,
+}
+
+/**
+ * 自动配置ANP智能体结构体
+ */
+pub struct AutoConfigAgent {
+    options: AutoConfigOptions,
+    http_config: Option<HTTPAutoConfig>,
+    did_config: Option<DIDAutoConfig>,
+    is_running: Arc<RwLock<bool>>,
+}
+
+impl AutoConfigAgent {
+    /// 创建新的自动配置智能体
+    pub fn new(options: AutoConfigOptions) -> Self {
+        Self {
+            options,
+            http_config: None,
+            did_config: None,
+            is_running: Arc::new(RwLock::new(false)),
+        }
+    }
+
+    /// 核心方法：自动配置所有内容
+    pub async fn auto_setup(&mut self) -> Result<AgentConfig> {
+        info!("🔄 ANP SDK: 开始自动配置...");
+        
+        // 步骤1: 配置HTTP服务器
+        let http_setup = self.setup_http_server().await?;
+        info!("✅ HTTP服务器配置完成: {}", http_setup.endpoint);
+        
+        // 步骤2: 配置DID文档
+        let did_setup = self.setup_did_config(&http_setup).await?;
+        info!("✅ DID配置完成: {}", did_setup.did);
+        
+        // 步骤3: 注册到发现服务
+        self.register_to_discovery(&http_setup, &did_setup).await?;
+        info!("✅ 注册到发现服务");
+        
+        *self.is_running.write().await = true;
+        info!("🎉 ANP SDK: 自动配置完成！");
+        
+        Ok(self.get_config(&http_setup, &did_setup).await)
+    }
+
+    /// 设置HTTP服务器
+    async fn setup_http_server(&mut self) -> Result<HTTPConfig> {
+        let http_options = HTTPAutoConfigOptions {
+            auto_start: self.options.auto_start,
+            auto_port: self.options.auto_port,
+            port_range: self.options.port_range,
+            host: Some("127.0.0.1".to_string()),
+            log_level: self.options.log_level.clone(),
+            routes: Some(Vec::new()),
+        };
+
+        let mut http_config = HTTPAutoConfig::new(http_options);
+        let http_setup = http_config.auto_setup().await?;
+        
+        // 添加ANP路由
+        self.add_anp_routes(&mut http_config, &http_setup).await?;
+        
+        self.http_config = Some(http_config);
+        Ok(http_setup)
+    }
+
+    /// 设置DID配置
+    async fn setup_did_config(&mut self, http_setup: &HTTPConfig) -> Result<DIDConfig> {
+        let did_options = DIDAutoConfigOptions {
+            auto_did: self.options.auto_did,
+            key_type: Some(KeyType::Ed25519),
+            agent_name: self.options.agent_name.clone(),
+            agent_description: Some("Automatically configured ANP agent via Rust SDK".to_string()),
+            agent_version: Some("1.0.0".to_string()),
+            interfaces: self.options.interfaces.clone(),
+            service_endpoints: Some(vec![
+                crate::did_auto_config::ServiceEndpoint {
+                    id: "anp-service".to_string(),
+                    endpoint_type: "ANPAgentService".to_string(),
+                    service_endpoint: format!("{}/anp/api", http_setup.endpoint),
+                    description: Some("Main ANP communication endpoint".to_string()),
+                }
+            ]),
+            log_level: self.options.log_level.clone(),
+        };
+
+        let mut did_config = DIDAutoConfig::new(did_options);
+        let did_setup = did_config.auto_setup(&http_setup.local_ip, Some(http_setup.port)).await?;
+        
+        self.did_config = Some(did_config);
+        Ok(did_setup)
+    }
+
+    /// 添加ANP路由
+    async fn add_anp_routes(&self, http_config: &mut HTTPAutoConfig, _http_setup: &HTTPConfig) -> Result<()> {
+        // DID文档端点
+        http_config.add_route(crate::http_auto_config::RouteConfig {
+            method: "GET".to_string(),
+            path: "/.well-known/did.json".to_string(),
+            handler_type: "json".to_string(),
+        }).await;
+
+        // 智能体描述文档端点
+        http_config.add_route(crate::http_auto_config::RouteConfig {
+            method: "GET".to_string(),
+            path: "/agents/auto-agent/ad.json".to_string(),
+            handler_type: "json".to_string(),
+        }).await;
+
+        // ANP通信端点
+        http_config.add_route(crate::http_auto_config::RouteConfig {
+            method: "POST".to_string(),
+            path: "/anp/api".to_string(),
+            handler_type: "json".to_string(),
+        }).await;
+
+        Ok(())
+    }
+
+    /// 注册到发现服务
+    async fn register_to_discovery(&self, http_setup: &HTTPConfig, did_setup: &DIDConfig) -> Result<()> {
+        if let Some(ref discovery_service) = self.options.discovery_service {
+            let client = reqwest::Client::new();
+            let payload = serde_json::json!({
+                "agent": did_setup.agent_description,
+                "endpoint": http_setup.endpoint
+            });
+
+            match client.post(discovery_service)
+                .json(&payload)
+                .send()
+                .await
+            {
+                Ok(response) => {
+                    if response.status().is_success() {
+                        info!("✅ 成功注册到发现服务");
+                    } else {
+                        warn!("⚠️ 发现服务注册失败: {}", response.status());
+                    }
+                }
+                Err(e) => {
+                    warn!("⚠️ 发现服务不可用: {}", e);
+                }
+            }
+        } else {
+            info!("⚠️ 未配置发现服务，跳过注册");
+        }
+
+        Ok(())
+    }
+
+    /// 获取配置信息
+    pub async fn get_config(&self, http_setup: &HTTPConfig, did_setup: &DIDConfig) -> AgentConfig {
+        AgentConfig {
+            did: did_setup.did.clone(),
+            port: http_setup.port,
+            endpoint: http_setup.endpoint.clone(),
+            local_ip: http_setup.local_ip.clone(),
+            private_key: did_setup.private_key.clone(),
+            did_document: serde_json::to_value(&did_setup.did_document).unwrap_or_default(),
+            agent_description: serde_json::to_value(&did_setup.agent_description).unwrap_or_default(),
+        }
+    }
+
+    /// 获取服务端点
+    pub fn get_endpoint(&self) -> Result<String> {
+        if let Some(ref http_config) = self.http_config {
+            http_config.get_endpoint()
+        } else {
+            Err(anyhow::anyhow!("Agent not configured yet"))
+        }
+    }
+
+    /// 停止服务
+    pub async fn stop(&mut self) -> Result<()> {
+        if let Some(ref mut http_config) = self.http_config {
+            http_config.stop().await?;
+        }
+        *self.is_running.write().await = false;
+        info!("🛑 ANP Agent 已停止");
+        Ok(())
+    }
+
+    /// 检查是否正在运行
+    pub async fn is_agent_running(&self) -> bool {
+        *self.is_running.read().await
+    }
+}
+
+/**
+ * ANP客户端结构体
+ */
+pub struct ANPClient {
+    did: String,
+    private_key: String,
+    client: reqwest::Client,
+}
+
+impl ANPClient {
+    /// 创建新的ANP客户端
+    pub fn new(did: String, private_key: String) -> Self {
+        Self {
+            did,
+            private_key,
+            client: reqwest::Client::new(),
+        }
+    }
+
+    /// 发送请求到其他智能体
+    pub async fn send_request(&self, target_url: &str, message: ANPRequest) -> Result<ANPResponse> {
+        let signature = self.generate_signature(&message);
+        
+        let response = self.client
+            .post(target_url)
+            .header("Content-Type", "application/json")
+            .header("Authorization", format!("DIDWba did=\"{}\", signature=\"{}\"", self.did, signature))
+            .json(&message)
+            .send()
+            .await?;
+        
+        if !response.status().is_success() {
+            return Err(anyhow::anyhow!("HTTP {}: {}", response.status(), response.status()));
+        }
+        
+        let anp_response: ANPResponse = response.json().await?;
+        Ok(anp_response)
+    }
+
+    /// 生成签名（简化版）
+    fn generate_signature(&self, _data: &ANPRequest) -> String {
+        // 这里应该实现完整的DID签名
+        // 为了演示，返回一个模拟签名
+        format!("mock_signature_{}", chrono::Utc::now().timestamp())
+    }
+}
+
+/**
+ * ANP SDK主结构体
+ */
+pub struct ANPSDK {
+    options: AutoConfigOptions,
+    agent: Option<AutoConfigAgent>,
+    is_running: Arc<RwLock<bool>>,
+}
+
+impl ANPSDK {
+    /// 创建新的ANP SDK实例
+    pub fn new(options: AutoConfigOptions) -> Self {
+        Self {
+            options,
+            agent: None,
+            is_running: Arc::new(RwLock::new(false)),
+        }
+    }
+
+    /// 主要API：一键启动智能体
+    pub async fn start(&mut self) -> Result<AgentConfig> {
+        if *self.is_running.read().await {
+            return Err(anyhow::anyhow!("Agent is already running"));
+        }
+
+        let mut agent = AutoConfigAgent::new(self.options.clone());
+        let config = agent.auto_setup().await?;
+        self.agent = Some(agent);
+        *self.is_running.write().await = true;
+        
+        Ok(config)
+    }
+
+    /// 停止智能体
+    pub async fn stop(&mut self) -> Result<()> {
+        if let Some(ref mut agent) = self.agent {
+            agent.stop().await?;
+        }
+        self.agent = None;
+        *self.is_running.write().await = false;
+        Ok(())
+    }
+
+    /// 创建客户端
+    pub fn create_client(&self, did: String, private_key: String) -> ANPClient {
+        ANPClient::new(did, private_key)
+    }
+
+    /// 检查是否正在运行
+    pub async fn is_agent_running(&self) -> bool {
+        *self.is_running.read().await
+    }
+}
+
+impl Default for AutoConfigOptions {
+    fn default() -> Self {
+        Self {
+            auto_start: Some(true),
+            auto_port: Some(true),
+            auto_did: Some(true),
+            discovery_service: None,
+            port_range: Some((3000, 4000)),
+            agent_name: Some("Auto-Configured ANP Agent".to_string()),
+            interfaces: Some(vec![AgentInterface {
+                interface_type: "NaturalLanguageInterface".to_string(),
+                description: "Auto-configured natural language interface".to_string(),
+                url: None,
+            }]),
+            log_level: Some("info".to_string()),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_auto_config_agent() {
+        let options = AutoConfigOptions::default();
+        let mut agent = AutoConfigAgent::new(options);
+        
+        let result = agent.auto_setup().await;
+        assert!(result.is_ok());
+        
+        let config = result.unwrap();
+        assert!(config.did.starts_with("did:wba:"));
+        assert!(config.port > 0);
+        assert!(!config.endpoint.is_empty());
+        
+        agent.stop().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_anp_sdk() {
+        let options = AutoConfigOptions::default();
+        let mut sdk = ANPSDK::new(options);
+        
+        let result = sdk.start().await;
+        assert!(result.is_ok());
+        
+        let config = result.unwrap();
+        assert!(config.did.starts_with("did:wba:"));
+        assert!(sdk.is_agent_running().await);
+        
+        sdk.stop().await.unwrap();
+        assert!(!sdk.is_agent_running().await);
+    }
+
+    #[tokio::test]
+    async fn test_anp_client() {
+        let client = ANPClient::new("did:wba:test".to_string(), "test_key".to_string());
+        
+        let request = ANPRequest {
+            content: Some("Hello".to_string()),
+            message: None,
+            extra: std::collections::HashMap::new(),
+        };
+        
+        // 注意：这个测试会失败，因为没有真实的服务器
+        // 在实际使用中，需要先启动一个ANP智能体
+        let result = client.send_request("http://localhost:3000/anp/api", request).await;
+        assert!(result.is_err()); // 预期失败，因为没有服务器
+    }
+}
+

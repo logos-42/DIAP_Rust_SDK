@@ -1,0 +1,66 @@
+[package]
+name = "anp-rs-sdk"
+version = "0.1.0"
+edition = "2021"
+authors = ["liuyuanjie <2844169590@qq.com>"]
+description = "ANP Rust SDK - 智能体网络协议自动配置工具包，提供HTTP服务器自动配置、DID自动生成、智能体描述等功能"
+license = "MIT"
+repository = "https://github.com/logos-42/AgentNetworkProtocol"
+homepage = "https://agent-network-protocol.com"
+documentation = "https://docs.rs/anp-rs-sdk"
+readme = "README.md"
+keywords = ["anp", "agent", "rust", "sdk", "auto-config"]
+categories = ["network-programming", "web-programming", "authentication", "cryptography", "asynchronous"]
+
+[dependencies]
+# HTTP服务器
+tokio = { version = "1.0", features = ["full"] }
+warp = "0.3"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# 加密和密钥生成
+ed25519-dalek = "2.0"
+secp256k1 = "0.28"
+x25519-dalek = "2.0"
+rand = "0.8"
+bs58 = "0.5"
+base64 = "0.21"
+sha2 = "0.10"
+
+# 网络和系统
+reqwest = { version = "0.11", features = ["json"] }
+url = "2.4"
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1.0", features = ["v4", "serde"] }
+
+# 日志
+log = "0.4"
+env_logger = "0.10"
+
+# 错误处理
+anyhow = "1.0"
+thiserror = "1.0"
+
+# 异步运行时
+futures = "0.3"
+
+[dev-dependencies]
+tokio-test = "0.4"
+
+[[example]]
+name = "basic_http_config"
+path = "examples/basic_http_config.rs"
+
+[[example]]
+name = "basic_did_config"
+path = "examples/basic_did_config.rs"
+
+[[example]]
+name = "full_anp_agent"
+path = "examples/full_anp_agent.rs"
+
+[[example]]
+name = "custom_config"
+path = "examples/custom_config.rs"
+
