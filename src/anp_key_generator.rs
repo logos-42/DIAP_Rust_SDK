@@ -101,13 +101,14 @@
      pub service_endpoint: String,
  }
  
- // 密钥对结果
- #[derive(Debug, Clone)]
- pub struct KeyPairResult {
-     pub did_document: String,
-     pub private_key: String,
-     pub did: String,
- }
+// 密钥对结果
+#[derive(Debug, Clone)]
+pub struct KeyPairResult {
+    pub did_document: String,
+    pub private_key: String,
+    pub did: String,
+    pub did_web: Option<String>, // did:web 格式
+}
  
  // 签名数据
  #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -132,14 +133,30 @@
          Self { domain, path }
      }
  
-     /// 生成DID标识符
-     fn generate_did(&self) -> String {
-         if let Some(ref path) = self.path {
-             format!("did:wba:{}:{}", self.domain, path)
-         } else {
-             format!("did:wba:{}", self.domain)
-         }
-     }
+    /// 生成DID标识符 (did:wba)
+    fn generate_did(&self) -> String {
+        if let Some(ref path) = self.path {
+            format!("did:wba:{}:{}", self.domain, path)
+        } else {
+            format!("did:wba:{}", self.domain)
+        }
+    }
+    
+    /// 生成 did:web 格式的 DID
+    fn generate_did_web(&self) -> String {
+        // did:web 格式: did:web:example.com:path:to:resource
+        // 路径中的斜杠 / 替换为冒号 :
+        // 端口号用 %3A 编码（在 URL 中 : 编码为 %3A）
+        let domain_normalized = self.domain.replace(':', "%3A");
+        
+        if let Some(ref path) = self.path {
+            // 将路径中的 / 和 : 替换为 did:web 格式
+            let path_normalized = path.replace('/', ":").replace(':', ":");
+            format!("did:web:{}:{}", domain_normalized, path_normalized)
+        } else {
+            format!("did:web:{}", domain_normalized)
+        }
+    }
  
      /// 生成安全的随机字符串
      fn generate_nonce(&self, length: usize) -> String {
@@ -311,11 +328,14 @@
              }]),
          };
  
-         Ok(KeyPairResult {
-             did_document: serde_json::to_string_pretty(&did_document)?,
-             private_key: private_key_pem,
-             did,
-         })
+        let did_web = self.generate_did_web();
+        
+        Ok(KeyPairResult {
+            did_document: serde_json::to_string_pretty(&did_document)?,
+            private_key: private_key_pem,
+            did,
+            did_web: Some(did_web),
+        })
      }
  
      /// 生成PEM格式的私钥

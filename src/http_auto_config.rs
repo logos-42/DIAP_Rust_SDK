@@ -11,6 +11,7 @@ use warp::Filter;
 use serde::{Deserialize, Serialize};
 use anyhow::Result;
 use log::info;
+use serde_json::Value;
 
 // 类型定义
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -55,6 +56,9 @@ pub struct HTTPAutoConfig {
     server_handle: Option<tokio::task::JoinHandle<()>>,
     is_running: Arc<RwLock<bool>>,
     routes: Arc<RwLock<HashMap<String, RouteConfig>>>,
+    // 存储 DID 文档和 AD 文档
+    pub did_document: Arc<RwLock<Option<Value>>>,
+    pub ad_document: Arc<RwLock<Option<Value>>>,
 }
 
 impl HTTPAutoConfig {
@@ -67,7 +71,19 @@ impl HTTPAutoConfig {
             server_handle: None,
             is_running: Arc::new(RwLock::new(false)),
             routes: Arc::new(RwLock::new(HashMap::new())),
+            did_document: Arc::new(RwLock::new(None)),
+            ad_document: Arc::new(RwLock::new(None)),
         }
+    }
+    
+    /// 设置 DID 文档
+    pub async fn set_did_document(&self, doc: Value) {
+        *self.did_document.write().await = Some(doc);
+    }
+    
+    /// 设置 AD 文档
+    pub async fn set_ad_document(&self, doc: Value) {
+        *self.ad_document.write().await = Some(doc);
     }
 
     /// 核心方法：自动配置HTTP服务器
@@ -144,7 +160,11 @@ impl HTTPAutoConfig {
         let host = self.options.host.as_deref().unwrap_or("127.0.0.1").to_string();
         let addr: SocketAddr = format!("{}:{}", host, port).parse()?;
         
-        // 创建基础路由 - 避免变量移动问题
+        // 克隆 Arc 引用用于路由
+        let did_doc = self.did_document.clone();
+        let ad_doc = self.ad_document.clone();
+        
+        // 健康检查路由
         let health_route = warp::path("health")
             .and(warp::get())
             .map(move || {
@@ -156,6 +176,7 @@ impl HTTPAutoConfig {
                 }))
             });
 
+        // 配置信息路由
         let config_route = warp::path("config")
             .and(warp::get())
             .map(move || {
@@ -169,27 +190,83 @@ impl HTTPAutoConfig {
                 warp::reply::json(&config)
             });
 
-        // 简化的动态路由处理 - 避免生命周期问题
-        let dynamic_routes = warp::any()
-            .and(warp::path::full())
-            .and(warp::method())
-            .map(|path: warp::path::FullPath, method: warp::http::Method| {
-                // 简化处理，直接返回 JSON 响应，不依赖外部状态
+        // DID 文档路由: /.well-known/did.json
+        let did_doc_clone = did_doc.clone();
+        let did_route = warp::path!(".well-known" / "did.json")
+            .and(warp::get())
+            .and_then(move || {
+                let did_doc = did_doc_clone.clone();
+                async move {
+                    let doc = did_doc.read().await;
+                    match doc.as_ref() {
+                        Some(d) => Ok::<_, warp::Rejection>(warp::reply::json(d)),
+                        None => {
+                            let error = serde_json::json!({
+                                "error": "DID document not available",
+                                "message": "DID document has not been configured yet"
+                            });
+                            Ok(warp::reply::json(&error))
+                        }
+                    }
+                }
+            });
+
+        // Agent Description 路由: /agents/{agent_id}/ad.json
+        let ad_doc_clone = ad_doc.clone();
+        let ad_route = warp::path!("agents" / String / "ad.json")
+            .and(warp::get())
+            .and_then(move |_agent_id: String| {
+                let ad_doc = ad_doc_clone.clone();
+                async move {
+                    let doc = ad_doc.read().await;
+                    match doc.as_ref() {
+                        Some(d) => Ok::<_, warp::Rejection>(warp::reply::json(d)),
+                        None => {
+                            let error = serde_json::json!({
+                                "error": "Agent description not available",
+                                "message": "Agent description has not been configured yet"
+                            });
+                            Ok(warp::reply::json(&error))
+                        }
+                    }
+                }
+            });
+
+        // ANP API 路由: /anp/api
+        let anp_api_route = warp::path!("anp" / "api")
+            .and(warp::post())
+            .and(warp::body::json())
+            .map(|body: serde_json::Value| {
+                // 简单的回显响应，实际应用中应该处理 ANP 协议消息
                 warp::reply::json(&serde_json::json!({
-                    "message": format!("处理路由: {}", path.as_str()),
-                    "method": method.as_str(),
-                    "timestamp": chrono::Utc::now().to_rfc3339(),
-                    "route_key": format!("{}:{}", method, path.as_str())
+                    "response": "ANP message received",
+                    "echo": body,
+                    "timestamp": chrono::Utc::now().to_rfc3339()
                 }))
+            });
+
+        // 通用 404 路由
+        let fallback_route = warp::any()
+            .map(|| {
+                warp::reply::with_status(
+                    warp::reply::json(&serde_json::json!({
+                        "error": "Not Found",
+                        "message": "The requested endpoint does not exist"
+                    })),
+                    warp::http::StatusCode::NOT_FOUND,
+                )
             });
 
         // 组合所有路由
         let routes = health_route
             .or(config_route)
-            .or(dynamic_routes)
+            .or(did_route)
+            .or(ad_route)
+            .or(anp_api_route)
+            .or(fallback_route)
             .with(warp::cors()
                 .allow_any_origin()
-                .allow_headers(vec!["content-type"])
+                .allow_headers(vec!["content-type", "authorization"])
                 .allow_methods(vec!["GET", "POST", "PUT", "DELETE", "OPTIONS"]));
 
         // 启动服务器

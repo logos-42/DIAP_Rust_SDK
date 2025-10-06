@@ -1,6 +1,6 @@
 [package]
 name = "anp-rs-sdk"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 authors = ["liuyuanjie <2844169590@qq.com>"]
 description = "ANP Rust SDK - 智能体网络协议自动配置工具包，提供HTTP服务器自动配置、DID自动生成、智能体描述等功能"
@@ -29,7 +29,7 @@ base64 = "0.21"
 sha2 = "0.10"
 
 # 网络和系统
-reqwest = { version = "0.11", features = ["json"] }
+reqwest = { version = "0.11", features = ["json", "multipart"] }
 url = "2.4"
 chrono = { version = "0.4", features = ["serde"] }
 uuid = { version = "1.0", features = ["v4", "serde"] }
@@ -63,4 +63,16 @@ path = "examples/full_anp_agent.rs"
 [[example]]
 name = "custom_config"
 path = "examples/custom_config.rs"
+
+[[example]]
+name = "basic_agent_with_did_web"
+path = "examples/basic_agent_with_did_web.rs"
+
+[[example]]
+name = "complete_agent_with_ipfs"
+path = "examples/complete_agent_with_ipfs.rs"
+
+[[example]]
+name = "ipfs_registry_demo"
+path = "examples/ipfs_registry_demo.rs"
 

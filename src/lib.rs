@@ -8,6 +8,7 @@ pub mod anp_key_generator;
 pub mod http_auto_config;
 pub mod did_auto_config;
 pub mod auto_config;
+pub mod ipfs_registry;
 
 // 导出核心结构体和枚举
 pub use anp_key_generator::{
@@ -26,6 +27,11 @@ pub use did_auto_config::{
 pub use auto_config::{
     ANPSDK, AutoConfigAgent, ANPClient, AutoConfigOptions, 
     AgentConfig, ANPRequest, ANPResponse
+};
+
+pub use ipfs_registry::{
+    IpfsRegistry, IpfsRegistryConfig, AgentRegistryEntry,
+    RegistryIndex, AgentSearchFilter
 };
 
 // 重新导出常用类型

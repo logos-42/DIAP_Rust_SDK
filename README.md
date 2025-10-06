@@ -10,6 +10,9 @@
 
 - **HTTP 服务器自动配置**：自动端口分配、路由管理、CORS 支持
 - **DID 自动生成**：支持 Ed25519、secp256k1、X25519 等多种加密算法
+- **多 DID 格式支持**：同时支持 `did:wba` 和 `did:web` 格式
+- **真实路由输出**：DID 文档、AD 文档通过 HTTP 端点真实可访问
+- **IPFS 注册表**：支持将智能体信息发布到 IPFS 网络，实现去中心化发现
 - **智能体描述**：自动生成符合 ANP 标准的智能体描述文档
 - **异步支持**：基于 Tokio 的高性能异步运行时
 - **类型安全**：完整的 Rust 类型系统支持
@@ -21,7 +24,7 @@
 
 ```toml
 [dependencies]
-anp-rs-sdk = "1.0.0"
+anp-rs-sdk = "0.1.2"
 ```
 
 ## 🎯 快速开始
@@ -109,17 +112,47 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 SDK 提供了多个示例来帮助你快速上手：
 
 ```bash
-# 基础 HTTP 配置
+# 基础示例（包含 did:web 支持）
+cargo run --example basic_agent_with_did_web
+
+# 完整示例（包含 IPFS 注册）
+cargo run --example complete_agent_with_ipfs
+
+# IPFS 注册表演示
+cargo run --example ipfs_registry_demo
+
+# 传统示例
 cargo run --example basic_http_config
-
-# DID 配置
 cargo run --example basic_did_config
-
-# 完整 ANP 智能体
 cargo run --example full_anp_agent
-
-# 自定义配置
 cargo run --example custom_config
+```
+
+### 新功能亮点
+
+#### 1. 双 DID 格式支持
+```rust
+let config = sdk.start().await?;
+println!("DID (wba): {}", config.did);
+println!("DID (web): {}", config.did_web.unwrap());
+```
+
+#### 2. 真实的 HTTP 端点
+- `GET /.well-known/did.json` - 返回真实的 DID 文档
+- `GET /agents/{id}/ad.json` - 返回智能体描述文档
+- `POST /anp/api` - ANP 协议通信端点
+
+#### 3. IPFS 注册表
+```rust
+let options = AutoConfigOptions {
+    auto_ipfs_register: Some(true),
+    ipfs_config: Some(IpfsRegistryConfig {
+        api_url: "http://127.0.0.1:5001".to_string(),
+        gateway_url: "https://ipfs.io".to_string(),
+        pin: true,
+    }),
+    ..Default::default()
+};
 ```
 
 ## 🔧 API 文档
@@ -136,13 +169,13 @@ cargo run --example custom_config
 
 ## 🔗 相关链接
 
-- [ANP 官方网站](https://agent-network-protocol.com)
-- [ANP 技术白皮书](https://github.com/logos-42/AgentNetworkProtocol)
+- [ANP 官方网站](https://github.com/agent-network-protocol/AgentNetworkProtocol)
+- [ANP 技术白皮书](https://github.com/agent-network-protocol/AgentNetworkProtocol)
 - [W3C WebAgents 社区组](https://www.w3.org/community/webagents/)
 
 ## 🆕 更新日志
 
-### v1.0.0
+### v0.1.2
 - 初始版本发布
 - 支持 HTTP 服务器自动配置
 - 支持 DID 自动生成

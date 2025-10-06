@@ -12,6 +12,7 @@ use tokio::sync::RwLock;
 use crate::http_auto_config::{HTTPAutoConfig, HTTPAutoConfigOptions, HTTPConfig};
 use crate::did_auto_config::{DIDAutoConfig, DIDAutoConfigOptions, DIDConfig, AgentInterface};
 use crate::anp_key_generator::KeyType;
+use crate::ipfs_registry::{IpfsRegistry, IpfsRegistryConfig, AgentRegistryEntry};
 
 // 类型定义
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -24,6 +25,10 @@ pub struct AutoConfigOptions {
     pub auto_did: Option<bool>,
     /// 发现服务地址
     pub discovery_service: Option<String>,
+    /// 是否自动注册到 IPFS
+    pub auto_ipfs_register: Option<bool>,
+    /// IPFS 注册表配置
+    pub ipfs_config: Option<IpfsRegistryConfig>,
     /// 端口范围
     pub port_range: Option<(u16, u16)>,
     /// 智能体名称
@@ -37,12 +42,14 @@ pub struct AutoConfigOptions {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentConfig {
     pub did: String,
+    pub did_web: Option<String>,
     pub port: u16,
     pub endpoint: String,
     pub local_ip: String,
     pub private_key: String,
     pub did_document: serde_json::Value,
     pub agent_description: serde_json::Value,
+    pub ipfs_cid: Option<String>, // IPFS 注册表 CID
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -99,10 +106,26 @@ impl AutoConfigAgent {
         self.register_to_discovery(&http_setup, &did_setup).await?;
         info!("✅ 注册到发现服务");
         
+        // 步骤4: 注册到 IPFS（如果启用）
+        let ipfs_cid = if self.options.auto_ipfs_register.unwrap_or(false) {
+            match self.register_to_ipfs(&http_setup, &did_setup).await {
+                Ok(cid) => {
+                    info!("✅ IPFS 注册完成: {}", cid);
+                    Some(cid)
+                }
+                Err(e) => {
+                    warn!("⚠️ IPFS 注册失败: {}", e);
+                    None
+                }
+            }
+        } else {
+            None
+        };
+        
         *self.is_running.write().await = true;
         info!("🎉 ANP SDK: 自动配置完成！");
         
-        Ok(self.get_config(&http_setup, &did_setup).await)
+        Ok(self.get_config_with_ipfs(&http_setup, &did_setup, ipfs_cid).await)
     }
 
     /// 设置HTTP服务器
@@ -148,6 +171,16 @@ impl AutoConfigAgent {
 
         let mut did_config = DIDAutoConfig::new(did_options);
         let did_setup = did_config.auto_setup(&http_setup.local_ip, Some(http_setup.port)).await?;
+        
+        // 将 DID 文档和 AD 文档设置到 HTTP 服务器
+        if let Some(ref http_config) = self.http_config {
+            let did_doc_json = serde_json::to_value(&did_setup.did_document)?;
+            let ad_doc_json = serde_json::to_value(&did_setup.agent_description)?;
+            
+            http_config.set_did_document(did_doc_json).await;
+            http_config.set_ad_document(ad_doc_json).await;
+            info!("✅ DID 和 AD 文档已设置到 HTTP 服务器");
+        }
         
         self.did_config = Some(did_config);
         Ok(did_setup)
@@ -211,16 +244,62 @@ impl AutoConfigAgent {
         Ok(())
     }
 
+    /// 注册到 IPFS
+    async fn register_to_ipfs(&self, http_setup: &HTTPConfig, did_setup: &DIDConfig) -> Result<String> {
+        let ipfs_config = self.options.ipfs_config.clone()
+            .unwrap_or_default();
+        
+        let registry = IpfsRegistry::new(ipfs_config);
+        
+        // 提取能力和接口
+        let capabilities: Vec<String> = did_setup.agent_description.capabilities
+            .iter()
+            .map(|c| c.name.clone())
+            .collect();
+        
+        let interfaces: Vec<String> = did_setup.agent_description.interfaces
+            .iter()
+            .map(|i| i.interface_type.clone())
+            .collect();
+        
+        let entry = AgentRegistryEntry {
+            did: did_setup.did.clone(),
+            did_web: did_setup.did_web.clone(),
+            name: did_setup.agent_description.name.clone(),
+            endpoint: http_setup.endpoint.clone(),
+            did_document_url: format!("{}/.well-known/did.json", http_setup.endpoint),
+            ad_url: format!("{}/agents/auto-agent/ad.json", http_setup.endpoint),
+            capabilities,
+            interfaces,
+            registered_at: chrono::Utc::now().to_rfc3339(),
+            updated_at: chrono::Utc::now().to_rfc3339(),
+        };
+        
+        registry.publish_agent(entry).await
+    }
+
     /// 获取配置信息
     pub async fn get_config(&self, http_setup: &HTTPConfig, did_setup: &DIDConfig) -> AgentConfig {
+        self.get_config_with_ipfs(http_setup, did_setup, None).await
+    }
+    
+    /// 获取配置信息（包含 IPFS CID）
+    pub async fn get_config_with_ipfs(
+        &self,
+        http_setup: &HTTPConfig,
+        did_setup: &DIDConfig,
+        ipfs_cid: Option<String>,
+    ) -> AgentConfig {
         AgentConfig {
             did: did_setup.did.clone(),
+            did_web: did_setup.did_web.clone(),
             port: http_setup.port,
             endpoint: http_setup.endpoint.clone(),
             local_ip: http_setup.local_ip.clone(),
             private_key: did_setup.private_key.clone(),
             did_document: serde_json::to_value(&did_setup.did_document).unwrap_or_default(),
             agent_description: serde_json::to_value(&did_setup.agent_description).unwrap_or_default(),
+            ipfs_cid,
         }
     }
 
@@ -358,6 +437,8 @@ impl Default for AutoConfigOptions {
             auto_port: Some(true),
             auto_did: Some(true),
             discovery_service: None,
+            auto_ipfs_register: Some(false), // 默认关闭，需要本地 IPFS 节点
+            ipfs_config: None,
             port_range: Some((3000, 4000)),
             agent_name: Some("Auto-Configured ANP Agent".to_string()),
             interfaces: Some(vec![AgentInterface {

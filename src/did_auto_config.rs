@@ -49,6 +49,7 @@ pub struct ServiceEndpoint {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DIDConfig {
     pub did: String,
+    pub did_web: Option<String>, // did:web 格式
     pub private_key: String,
     pub public_key: String,
     pub did_document: DIDDocument,
@@ -106,6 +107,7 @@ pub struct Protocol {
 pub struct DIDAutoConfig {
     options: DIDAutoConfigOptions,
     auto_did: Option<String>,
+    auto_did_web: Option<String>,
     private_key: Option<String>,
     public_key: Option<String>,
     did_document: Option<DIDDocument>,
@@ -118,6 +120,7 @@ impl DIDAutoConfig {
         Self {
             options,
             auto_did: None,
+            auto_did_web: None,
             private_key: None,
             public_key: None,
             did_document: None,
@@ -160,6 +163,7 @@ impl DIDAutoConfig {
         let key_pair = generator.generate_keypair(key_type)?;
         
         self.auto_did = Some(key_pair.did);
+        self.auto_did_web = key_pair.did_web;
         self.private_key = Some(key_pair.private_key);
         
         // 解析DID文档
@@ -352,6 +356,7 @@ impl DIDAutoConfig {
 
         Ok(DIDConfig {
             did: did.clone(),
+            did_web: self.auto_did_web.clone(),
             private_key: private_key.clone(),
             public_key: public_key.clone(),
             did_document: did_document.clone(),
