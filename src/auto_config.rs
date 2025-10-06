@@ -254,6 +254,7 @@ impl AutoConfigAgent {
  */
 pub struct ANPClient {
     did: String,
+    #[allow(dead_code)]
     private_key: String,
     client: reqwest::Client,
 }

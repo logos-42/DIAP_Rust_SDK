@@ -476,7 +476,8 @@
      }
  }
  
- // 如果直接运行此文件
- fn main() -> anyhow::Result<()> {
-     example()
- }
+// 如果直接运行此文件
+#[allow(dead_code)]
+fn main() -> anyhow::Result<()> {
+    example()
+}

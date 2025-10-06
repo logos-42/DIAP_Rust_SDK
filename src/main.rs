@@ -7,7 +7,6 @@ use anp_rs_sdk::{
     ANPSDK, AutoConfigOptions, AgentInterface,
     anp_key_generator::{ANPKeyGenerator, KeyType}
 };
-use log::info;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
