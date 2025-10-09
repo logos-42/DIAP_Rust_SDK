@@ -1,6 +1,6 @@
 [package]
 name = "anp-rs-sdk"
-version = "0.1.2"
+version = "0.1.6"
 edition = "2021"
 authors = ["liuyuanjie <2844169590@qq.com>"]
 description = "ANP Rust SDK - 智能体网络协议自动配置工具包，提供HTTP服务器自动配置、DID自动生成、智能体描述等功能"
