@@ -1,0 +1,66 @@
+# ANP SDK 配置文件示例
+# 复制此文件为 anp-config.toml 并根据需要修改
+
+[ipfs.primary_node]
+# AWS IPFS节点配置（主节点）
+api_url = "http://your-aws-ipfs-node:5001"
+gateway_url = "http://your-aws-ipfs-node:8080"
+# 认证方式（可选）
+# auth_type = "none"  # 或 "api_token" 或 "basic"
+# auth_token = "your_token"  # 如果使用api_token
+# auth_username = "user"     # 如果使用basic
+# auth_password = "pass"     # 如果使用basic
+
+[ipfs.fallback_node]
+# Pinata作为回退节点（可选）
+api_url = "https://api.pinata.cloud"
+gateway_url = "https://gateway.pinata.cloud"
+auth_type = "api_token"
+auth_token = "YOUR_PINATA_JWT_TOKEN"
+
+[ipns]
+# IPNS提供商选择
+# 可选值: "w3name", "ipfs_node", "both"
+provider = "w3name"
+# w3name API地址
+w3name_api_url = "https://name.web3.storage"
+# 是否在w3name失败时回退到IPFS节点
+fallback_to_ipfs = true
+
+[key_storage]
+# 密钥存储路径（支持 ~ 展开）
+path = "~/.anp/keys"
+# 是否加密存储
+encryption = true
+# 密钥文件名
+filename = "agent_key.json"
+
+[cache]
+# 是否启用缓存
+enabled = true
+# 缓存存储路径
+path = "~/.anp/cache"
+# 缓存有效期（小时）
+ttl_hours = 6
+# 最大缓存条目数
+max_entries = 1000
+
+[logging]
+# 日志级别: "trace", "debug", "info", "warn", "error"
+level = "info"
+# 日志输出路径（可选，不设置则输出到stdout）
+# file = "~/.anp/logs/anp.log"
+
+[update_scheduler]
+# 是否启用自动更新
+enabled = true
+# 更新间隔（小时）
+interval_hours = 24
+# 启动时是否立即检查更新
+check_on_startup = true
+
+[batch]
+# 批量处理并发数
+concurrency = 5
+# 批量处理超时（秒）
+timeout_seconds = 300

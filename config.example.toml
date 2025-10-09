@@ -1,0 +1,74 @@
+# ANP Rust SDK 配置示例文件
+# 复制此文件到 ~/.config/anp-rs-sdk/config.toml 并修改
+
+[agent]
+# 智能体名称
+name = "My ANP Agent"
+
+# 私钥文件路径（会自动创建目录）
+private_key_path = "~/.local/share/anp-rs-sdk/keys/agent.key"
+
+# 如果私钥文件不存在，是否自动生成
+auto_generate_key = true
+
+[ipfs]
+# ===== AWS IPFS节点配置（优先使用）=====
+# 如果你有自己的IPFS节点（推荐）
+aws_api_url = "http://your-aws-ip:5001"
+aws_gateway_url = "http://your-aws-ip:8080"
+
+# ===== Pinata配置（备用或主用）=====
+# 如果没有自己的IPFS节点，使用Pinata（免费1GB）
+# 访问 https://pinata.cloud 注册并获取API密钥
+# pinata_api_key = "your-pinata-api-key"
+# pinata_api_secret = "your-pinata-api-secret"
+
+# 请求超时时间（秒）
+timeout_seconds = 30
+
+[ipns]
+# 是否使用w3name发布IPNS（推荐，免费）
+use_w3name = true
+
+# 是否使用IPFS节点发布IPNS（备用）
+use_ipfs_node = true
+
+# IPNS记录有效期（天）
+validity_days = 365
+
+[cache]
+# 是否启用缓存（提升性能）
+enabled = true
+
+# 缓存有效期（秒，默认6小时）
+ttl_seconds = 21600
+
+# 最大缓存条目数
+max_entries = 1000
+
+# 缓存目录（留空使用默认位置）
+# cache_dir = "~/.cache/anp-rs-sdk"
+
+[logging]
+# 日志级别: trace, debug, info, warn, error
+level = "info"
+
+# ===== 配置说明 =====
+#
+# 最小配置（使用Pinata）：
+#   只需配置 ipfs.pinata_api_key 和 ipfs.pinata_api_secret
+#
+# 推荐配置（使用AWS IPFS节点）：
+#   配置 ipfs.aws_api_url 和 ipfs.aws_gateway_url
+#   可选配置 Pinata 作为备用
+#
+# 完整配置（最佳）：
+#   同时配置AWS和Pinata
+#   AWS作为主要上传方式（快）
+#   Pinata作为备用（可靠）
+#
+# ===== 获取帮助 =====
+#
+# 文档: https://github.com/logos-42/AgentNetworkProtocol/tree/main/ANP-Rust-SDK
+# Discord: https://discord.gg/sFjBKTY7sB
+# Email: chgaowei@gmail.com

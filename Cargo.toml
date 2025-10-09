@@ -11,7 +11,16 @@ documentation = "https://docs.rs/anp-rs-sdk"
 readme = "README.md"
 keywords = ["anp", "agent", "rust", "sdk", "auto-config"]
 categories = ["network-programming", "web-programming", "authentication", "cryptography", "asynchronous"]
+exclude = [
+    "test_complete.ps1",
+    "publish.ps1", 
+    "RELEASE_CHECKLIST.md",
+    "TEST_RESULTS.md",
+    "examples/basic_agent_with_did_web.rs",
+    "examples/complete_agent_with_ipfs.rs",
+    "examples/ipfs_registry_demo.rs"
 
+]
 [dependencies]
 # HTTP服务器
 tokio = { version = "1.0", features = ["full"] }
@@ -27,12 +36,38 @@ rand = "0.8"
 bs58 = "0.5"
 base64 = "0.21"
 sha2 = "0.10"
+hex = "0.4"
+aes-gcm = "0.10"  # 私钥加密
+
+# IPFS/IPNS
+cid = "0.10"
+multihash = "0.18"
+# w3name将在后续添加（需要确认版本）
+
+# libp2p核心
+libp2p = { version = "0.53", features = [
+    "tcp",                # TCP传输
+    "noise",              # Noise协议加密
+    "yamux",              # Yamux多路复用
+    "kad",                # Kademlia DHT
+    "identify",           # 节点识别
+    "ping",               # Ping协议
+    "request-response",   # 请求响应协议
+    "mdns",               # 本地网络发现
+    "tokio",              # Tokio运行时
+] }
+libp2p-identity = { version = "0.2", features = ["ed25519", "secp256k1"] }
 
 # 网络和系统
-reqwest = { version = "0.11", features = ["json", "multipart"] }
+reqwest = { version = "0.11", features = ["json", "multipart", "stream"] }
 url = "2.4"
 chrono = { version = "0.4", features = ["serde"] }
 uuid = { version = "1.0", features = ["v4", "serde"] }
+
+# 配置和存储
+toml = "0.8"
+sled = "0.34"  # 嵌入式数据库用于缓存
+directories = "5.0"  # 跨平台目录
 
 # 日志
 log = "0.4"
@@ -44,9 +79,20 @@ thiserror = "1.0"
 
 # 异步运行时
 futures = "0.3"
+prost = "0.12"
+
+argon2 = "0.5"
+
+# 缓存
+dashmap = "5.5"
+parking_lot = "0.12"
+
+# 文件系统
+dirs = "5.0"
 
 [dev-dependencies]
 tokio-test = "0.4"
+tempfile = "3.8"
 
 [[example]]
 name = "basic_http_config"
@@ -65,14 +111,26 @@ name = "custom_config"
 path = "examples/custom_config.rs"
 
 [[example]]
-name = "basic_agent_with_did_web"
-path = "examples/basic_agent_with_did_web.rs"
+name = "ipfs_ipns_basic"
+path = "examples/ipfs_ipns_basic.rs"
 
 [[example]]
-name = "complete_agent_with_ipfs"
-path = "examples/complete_agent_with_ipfs.rs"
+name = "did_resolver_demo"
+path = "examples/did_resolver_demo.rs"
 
 [[example]]
-name = "ipfs_registry_demo"
-path = "examples/ipfs_registry_demo.rs"
+name = "batch_upload_demo"
+path = "examples/batch_upload_demo.rs"
+
+[[example]]
+name = "auto_update_demo"
+path = "examples/auto_update_demo.rs"
+
+[[example]]
+name = "libp2p_did_complete"
+path = "examples/libp2p_did_complete.rs"
+
+[[example]]
+name = "p2p_communication_demo"
+path = "examples/p2p_communication_demo.rs"
 
