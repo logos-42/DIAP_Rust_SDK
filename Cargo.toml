@@ -119,23 +119,3 @@ path = "examples/custom_config.rs"
 name = "ipfs_ipns_basic"
 path = "examples/ipfs_ipns_basic.rs"
 
-[[example]]
-name = "did_resolver_demo"
-path = "examples/did_resolver_demo.rs"
-
-[[example]]
-name = "batch_upload_demo"
-path = "examples/batch_upload_demo.rs"
-
-[[example]]
-name = "auto_update_demo"
-path = "examples/auto_update_demo.rs"
-
-[[example]]
-name = "libp2p_did_complete"
-path = "examples/libp2p_did_complete.rs"
-
-[[example]]
-name = "p2p_communication_demo"
-path = "examples/p2p_communication_demo.rs"
-
