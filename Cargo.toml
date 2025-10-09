@@ -12,19 +12,8 @@ readme = "README.md"
 keywords = ["anp", "agent", "rust", "sdk", "auto-config"]
 categories = ["network-programming", "web-programming", "authentication", "cryptography", "asynchronous"]
 exclude = [
-    "test_complete.ps1",
-    "publish.ps1", 
-    "RELEASE_CHECKLIST.md",
-    "TEST_RESULTS.md",
-    "examples/basic_agent_with_did_web.rs",
-    "examples/complete_agent_with_ipfs.rs",
-    "examples/ipfs_registry_demo.rs",
-    "examples/auto_update_demo.rs",
-    "examples/batch_upload_demo.rs",
-    "examples/did_resolver_demo.rs",
-    "examples/ipfs_ipns_basic.rs",
-    "examples/libp2p_did_complete.rs",
-    "examples/p2p_communication_demo.rs"
+    
+    
 ]
 [dependencies]
 # HTTP服务器
