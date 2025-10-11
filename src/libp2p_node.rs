@@ -76,7 +76,7 @@ impl LibP2PNode {
         NodeInfo {
             peer_id: self.peer_id.to_base58(),
             multiaddrs,
-            protocols: vec!["/anp/1.0.0".to_string()],
+            protocols: vec!["/diap/1.0.0".to_string()],
             updated_at: chrono::Utc::now().to_rfc3339(),
         }
     }
@@ -128,7 +128,7 @@ mod tests {
         
         assert!(!info.peer_id.is_empty());
         assert!(!info.multiaddrs.is_empty());
-        assert_eq!(info.protocols, vec!["/anp/1.0.0"]);
+        assert_eq!(info.protocols, vec!["/diap/1.0.0"]);
         assert!(!info.updated_at.is_empty());
         
         println!("节点信息: {:?}", info);

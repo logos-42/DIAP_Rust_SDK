@@ -23,7 +23,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     // 示例2: 完整DIAP智能体配置
     println!("\n📋 示例2: 完整DIAP智能体配置");
-    full_anp_agent_example().await?;
+    full_diap_agent_example().await?;
     
     // 示例3: 自定义配置
     println!("\n📋 示例3: 自定义配置");
@@ -56,7 +56,7 @@ async fn basic_key_generation_example() -> Result<(), Box<dyn std::error::Error>
 }
 
 /// 完整DIAP智能体配置示例
-async fn full_anp_agent_example() -> Result<(), Box<dyn std::error::Error>> {
+async fn full_diap_agent_example() -> Result<(), Box<dyn std::error::Error>> {
     let options = AutoConfigOptions {
         auto_start: Some(true),
         auto_port: Some(true),

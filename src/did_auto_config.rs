@@ -215,7 +215,7 @@ impl DIDAutoConfig {
             did_doc.service.as_mut().unwrap().push(Service {
                 id: "default".to_string(),
                 service_type: "DIAPAgentService".to_string(),
-                service_endpoint: "http://localhost:3000/anp/api".to_string(),
+                service_endpoint: "http://localhost:3000/diap/api".to_string(),
             });
         }
 
@@ -284,7 +284,7 @@ impl DIDAutoConfig {
                 }
             }
         }
-        Ok("http://localhost:3000/anp/api".to_string())
+        Ok("http://localhost:3000/diap/api".to_string())
     }
 
     /// 更新服务端点

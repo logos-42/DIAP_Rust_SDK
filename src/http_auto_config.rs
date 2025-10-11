@@ -234,7 +234,7 @@ impl HTTPAutoConfig {
             });
 
         // DIAP API 路由: /diap/api
-        let anp_api_route = warp::path!("anp" / "api")
+        let diap_api_route = warp::path!("diap" / "api")
             .and(warp::post())
             .and(warp::body::json())
             .map(|body: serde_json::Value| {
@@ -263,7 +263,7 @@ impl HTTPAutoConfig {
             .or(config_route)
             .or(did_route)
             .or(ad_route)
-            .or(anp_api_route)
+            .or(diap_api_route)
             .or(fallback_route)
             .with(warp::cors()
                 .allow_any_origin()

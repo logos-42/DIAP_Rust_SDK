@@ -193,7 +193,7 @@ impl IpfsClient {
                 "name": name,
                 "keyvalues": {
                     "type": "did-document",
-                    "uploaded_by": "anp-rs-sdk"
+                    "uploaded_by": "diap-rs-sdk"
                 }
             }
         });

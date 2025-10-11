@@ -1,5 +1,5 @@
 /**
- * ANP协议密钥对生成器 - Rust版本
+ * DIAP协议密钥对生成器 - Rust版本
  * 支持Ed25519和secp256k1算法
  * 使用真正的加密库实现
  */
@@ -119,14 +119,14 @@ pub struct SignatureData {
 }
 
 /**
- * ANP密钥对生成器
+ * DIAP密钥对生成器
  */
-pub struct ANPKeyGenerator {
+pub struct DIAPKeyGenerator {
     domain: String,
     path: Option<String>,
 }
 
-impl ANPKeyGenerator {
+impl DIAPKeyGenerator {
     /// 创建新的密钥生成器
     pub fn new(domain: String, path: Option<String>) -> Self {
         Self { domain, path }
@@ -399,7 +399,7 @@ impl ANPKeyGenerator {
 
 // 使用示例
 pub fn example() -> Result<(), Box<dyn std::error::Error>> {
-    let generator = ANPKeyGenerator::new("example.com".to_string(), Some("user:alice".to_string()));
+    let generator = DIAPKeyGenerator::new("example.com".to_string(), Some("user:alice".to_string()));
     
     // 生成Ed25519密钥对
     let ed25519_result = generator.generate_keypair(KeyType::Ed25519)?;
@@ -424,7 +424,7 @@ mod tests {
 
     #[test]
     fn test_generate_ed25519_keypair() {
-        let generator = ANPKeyGenerator::new("test.com".to_string(), None);
+        let generator = DIAPKeyGenerator::new("test.com".to_string(), None);
         let result = generator.generate_keypair(KeyType::Ed25519).unwrap();
         
         assert!(result.did.starts_with("did:wba:test.com"));
@@ -434,7 +434,7 @@ mod tests {
 
     #[test]
     fn test_generate_secp256k1_keypair() {
-        let generator = ANPKeyGenerator::new("test.com".to_string(), Some("user:test".to_string()));
+        let generator = DIAPKeyGenerator::new("test.com".to_string(), Some("user:test".to_string()));
         let result = generator.generate_keypair(KeyType::Secp256k1).unwrap();
         
         assert!(result.did.starts_with("did:wba:test.com:user:test"));
@@ -444,7 +444,7 @@ mod tests {
 
     #[test]
     fn test_ed25519_sign_verify() {
-        let generator = ANPKeyGenerator::new("test.com".to_string(), None);
+        let generator = DIAPKeyGenerator::new("test.com".to_string(), None);
         let (secret_key, public_key) = generator.generate_ed25519_keypair();
         let data = generator.generate_signature_data("test.com", "did:wba:test.com");
         
@@ -456,7 +456,7 @@ mod tests {
 
     #[test]
     fn test_secp256k1_sign_verify() {
-        let generator = ANPKeyGenerator::new("test.com".to_string(), None);
+        let generator = DIAPKeyGenerator::new("test.com".to_string(), None);
         let (secret_key, public_key) = generator.generate_secp256k1_keypair();
         let data = generator.generate_signature_data("test.com", "did:wba:test.com");
         

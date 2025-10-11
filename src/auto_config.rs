@@ -144,7 +144,7 @@ impl AutoConfigAgent {
         let http_setup = http_config.auto_setup().await?;
         
         // 添加DIAP路由
-        self.add_anp_routes(&mut http_config, &http_setup).await?;
+        self.add_diap_routes(&mut http_config, &http_setup).await?;
         
         self.http_config = Some(http_config);
         Ok(http_setup)
@@ -161,9 +161,9 @@ impl AutoConfigAgent {
             interfaces: self.options.interfaces.clone(),
             service_endpoints: Some(vec![
                 crate::did_auto_config::ServiceEndpoint {
-                    id: "anp-service".to_string(),
+                    id: "diap-service".to_string(),
                     endpoint_type: "DIAPAgentService".to_string(),
-                    service_endpoint: format!("{}/anp/api", http_setup.endpoint),
+                    service_endpoint: format!("{}/diap/api", http_setup.endpoint),
                     description: Some("Main DIAP communication endpoint".to_string()),
                 }
             ]),
@@ -188,7 +188,7 @@ impl AutoConfigAgent {
     }
 
     /// 添加DIAP路由
-    async fn add_anp_routes(&self, http_config: &mut HTTPAutoConfig, _http_setup: &HTTPConfig) -> Result<()> {
+    async fn add_diap_routes(&self, http_config: &mut HTTPAutoConfig, _http_setup: &HTTPConfig) -> Result<()> {
         // DID文档端点
         http_config.add_route(crate::http_auto_config::RouteConfig {
             method: "GET".to_string(),
@@ -206,7 +206,7 @@ impl AutoConfigAgent {
         // DIAP通信端点
         http_config.add_route(crate::http_auto_config::RouteConfig {
             method: "POST".to_string(),
-            path: "/anp/api".to_string(),
+            path: "/diap/api".to_string(),
             handler_type: "json".to_string(),
         }).await;
 
@@ -473,7 +473,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_anp_sdk() {
+    async fn test_diap_sdk() {
         let options = AutoConfigOptions::default();
         let mut sdk = DIAPSDK::new(options);
         
@@ -489,7 +489,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_anp_client() {
+    async fn test_diap_client() {
         let client = DIAPClient::new("did:wba:test".to_string(), "test_key".to_string());
         
         let request = DIAPRequest {
@@ -500,7 +500,7 @@ mod tests {
         
         // 注意：这个测试会失败，因为没有真实的服务器
         // 在实际使用中，需要先启动一个DIAP智能体
-        let result = client.send_request("http://localhost:3000/anp/api", request).await;
+        let result = client.send_request("http://localhost:3000/diap/api", request).await;
         assert!(result.is_err()); // 预期失败，因为没有服务器
     }
 }
