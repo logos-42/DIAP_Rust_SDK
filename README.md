@@ -1,10 +1,10 @@
-# ANP Rust SDK
+# DANP Rust SDK
 
-[![Crates.io](https://img.shields.io/crates/v/anp-rs-sdk.svg)](https://crates.io/crates/anp-rs-sdk)
-[![Documentation](https://docs.rs/anp-rs-sdk/badge.svg)](https://docs.rs/anp-rs-sdk)
+[![Crates.io](https://img.shields.io/crates/v/anp-rs-sdk.svg)](https://crates.io/crates/DIAP_Rust_SDK)
+[![Documentation](https://docs.rs/DIAP_Rust_SDK/badge.svg)](https://docs.rs/DIAP_Rust_SDK)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**ANP Rust SDK** 是智能体网络协议（Agent Network Protocol）的 Rust 实现，提供完整的自动配置工具包，包括 HTTP 服务器自动配置、DID 自动生成、智能体描述等功能。
+**DIAP Rust SDK** 是智能体网络协议（Decentralized Intelligent Agent Protocol）的 Rust 实现，提供完整的自动配置工具包，包括 HTTP 服务器自动配置、DID 自动生成、智能体描述等功能。
 
 ## 🚀 特性
 
@@ -24,7 +24,7 @@
 
 ```toml
 [dependencies]
-anp-rs-sdk = "0.1.2"
+diap-rs-sdk = "0.1.3"
 ```
 
 ## 🎯 快速开始
@@ -32,7 +32,7 @@ anp-rs-sdk = "0.1.2"
 ### 基础 HTTP 配置
 
 ```rust
-use anp_rs_sdk::{ANPSDK, AutoConfigOptions};
+use DIAP::{DIAPSDK, AutoConfigOptions};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
