@@ -1,6 +1,7 @@
 /**
- * ANP Rust SDK 主启动文件
- * 演示如何使用ANP Rust SDK
+ * DIAP Rust SDK 主启动文件
+ * Decentralized Intelligent Agent Protocol
+ * 演示如何使用DIAP Rust SDK
  */
 
 use diap_rs_sdk::{
@@ -13,15 +14,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 初始化日志
     env_logger::init();
     
-    println!("🚀 ANP Rust SDK 启动演示");
+    println!("🚀 DIAP Rust SDK 启动演示");
     println!("================================");
     
     // 示例1: 基础密钥生成
     println!("\n📋 示例1: 基础密钥生成");
     basic_key_generation_example().await?;
     
-    // 示例2: 完整ANP智能体配置
-    println!("\n📋 示例2: 完整ANP智能体配置");
+    // 示例2: 完整DIAP智能体配置
+    println!("\n📋 示例2: 完整DIAP智能体配置");
     full_anp_agent_example().await?;
     
     // 示例3: 自定义配置
@@ -34,7 +35,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 /// 基础密钥生成示例
 async fn basic_key_generation_example() -> Result<(), Box<dyn std::error::Error>> {
-    let generator = ANPKeyGenerator::new("example.com".to_string(), Some("user:alice".to_string()));
+    let generator = DIAPKeyGenerator::new("example.com".to_string(), Some("user:alice".to_string()));
     
     // 生成Ed25519密钥对
     let ed25519_result = generator.generate_keypair(KeyType::Ed25519)?;
@@ -54,13 +55,13 @@ async fn basic_key_generation_example() -> Result<(), Box<dyn std::error::Error>
     Ok(())
 }
 
-/// 完整ANP智能体配置示例
+/// 完整DIAP智能体配置示例
 async fn full_anp_agent_example() -> Result<(), Box<dyn std::error::Error>> {
     let options = AutoConfigOptions {
         auto_start: Some(true),
         auto_port: Some(true),
         port_range: Some((3000, 3100)),
-        agent_name: Some("Demo ANP Agent".to_string()),
+        agent_name: Some("Demo DIAP Agent".to_string()),
         interfaces: Some(vec![
             AgentInterface {
                 interface_type: "NaturalLanguageInterface".to_string(),
@@ -105,10 +106,10 @@ async fn full_anp_agent_example() -> Result<(), Box<dyn std::error::Error>> {
             tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
             
             sdk.stop().await?;
-            println!("🛑 ANP智能体已停止");
+            println!("🛑 DIAP智能体已停止");
         }
         Err(e) => {
-            eprintln!("❌ ANP智能体启动失败: {}", e);
+            eprintln!("❌ DIAP智能体启动失败: {}", e);
         }
     }
 
@@ -121,7 +122,7 @@ async fn custom_config_example() -> Result<(), Box<dyn std::error::Error>> {
         auto_start: Some(true),
         auto_port: Some(false), // 使用指定端口
         port_range: Some((8080, 8080)), // 指定端口8080
-        agent_name: Some("Custom ANP Agent".to_string()),
+        agent_name: Some("Custom DIAP Agent".to_string()),
         interfaces: Some(vec![
             AgentInterface {
                 interface_type: "StructuredInterface".to_string(),
@@ -137,7 +138,7 @@ async fn custom_config_example() -> Result<(), Box<dyn std::error::Error>> {
 
     match sdk.start().await {
         Ok(config) => {
-            println!("🎉 自定义ANP智能体启动成功！");
+            println!("🎉 自定义DIAP智能体启动成功！");
             println!("   - 自定义端点: {}", config.endpoint);
             println!("   - DID: {}", config.did);
             println!("   - 指定端口: {}", config.port);
@@ -160,10 +161,10 @@ async fn custom_config_example() -> Result<(), Box<dyn std::error::Error>> {
             tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
             
             sdk.stop().await?;
-            println!("🛑 自定义ANP智能体已停止");
+            println!("🛑 自定义DIAP智能体已停止");
         }
         Err(e) => {
-            eprintln!("❌ 自定义ANP智能体启动失败: {}", e);
+            eprintln!("❌ 自定义DIAP智能体启动失败: {}", e);
         }
     }
 

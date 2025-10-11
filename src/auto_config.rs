@@ -71,7 +71,7 @@ pub struct DIAPResponse {
 }
 
 /**
- * 自动配置ANP智能体结构体
+ * 自动配置DIAP智能体结构体
  */
 pub struct AutoConfigAgent {
     options: AutoConfigOptions,
@@ -143,7 +143,7 @@ impl AutoConfigAgent {
         let mut http_config = HTTPAutoConfig::new(http_options);
         let http_setup = http_config.auto_setup().await?;
         
-        // 添加ANP路由
+        // 添加DIAP路由
         self.add_anp_routes(&mut http_config, &http_setup).await?;
         
         self.http_config = Some(http_config);
@@ -156,15 +156,15 @@ impl AutoConfigAgent {
             auto_did: self.options.auto_did,
             key_type: Some(KeyType::Ed25519),
             agent_name: self.options.agent_name.clone(),
-            agent_description: Some("Automatically configured ANP agent via Rust SDK".to_string()),
+            agent_description: Some("Automatically configured DIAP agent via Rust SDK".to_string()),
             agent_version: Some("1.0.0".to_string()),
             interfaces: self.options.interfaces.clone(),
             service_endpoints: Some(vec![
                 crate::did_auto_config::ServiceEndpoint {
                     id: "anp-service".to_string(),
-                    endpoint_type: "ANPAgentService".to_string(),
+                    endpoint_type: "DIAPAgentService".to_string(),
                     service_endpoint: format!("{}/anp/api", http_setup.endpoint),
-                    description: Some("Main ANP communication endpoint".to_string()),
+                    description: Some("Main DIAP communication endpoint".to_string()),
                 }
             ]),
             log_level: self.options.log_level.clone(),
@@ -187,7 +187,7 @@ impl AutoConfigAgent {
         Ok(did_setup)
     }
 
-    /// 添加ANP路由
+    /// 添加DIAP路由
     async fn add_anp_routes(&self, http_config: &mut HTTPAutoConfig, _http_setup: &HTTPConfig) -> Result<()> {
         // DID文档端点
         http_config.add_route(crate::http_auto_config::RouteConfig {
@@ -203,7 +203,7 @@ impl AutoConfigAgent {
             handler_type: "json".to_string(),
         }).await;
 
-        // ANP通信端点
+        // DIAP通信端点
         http_config.add_route(crate::http_auto_config::RouteConfig {
             method: "POST".to_string(),
             path: "/anp/api".to_string(),

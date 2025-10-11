@@ -1,5 +1,6 @@
 /**
- * ANP IPFS 注册表模块
+ * DIAP IPFS 注册表模块
+ * Decentralized Intelligent Agent Protocol
  * 提供智能体注册到 IPFS 网络的功能
  */
 

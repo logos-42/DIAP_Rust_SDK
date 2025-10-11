@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # DIAP Rust SDK
 
 [![Crates.io](https://img.shields.io/crates/v/diap-rs-sdk.svg)](https://crates.io/crates/diap-rs-sdk)
@@ -5,6 +6,15 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 **DIAP (Decentralized Intelligent Agent Protocol)** 是一个完整的去中心化智能体协议 Rust SDK，提供了构建去中心化智能体所需的全部基础设施。
+=======
+# DANP Rust SDK
+
+[![Crates.io](https://img.shields.io/crates/v/anp-rs-sdk.svg)](https://crates.io/crates/DIAP_Rust_SDK)
+[![Documentation](https://docs.rs/DIAP_Rust_SDK/badge.svg)](https://docs.rs/DIAP_Rust_SDK)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+**DIAP Rust SDK** 是智能体网络协议（Decentralized Intelligent Agent Protocol）的 Rust 实现，提供完整的自动配置工具包，包括 HTTP 服务器自动配置、DID 自动生成、智能体描述等功能。
+>>>>>>> b87fb7798eff5be048264272b24547af69026a30
 
 > **🆕 最新版本 v0.1.4**: 完整的去中心化智能体协议实现，包括 libp2p P2P 网络、IPFS/IPNS 存储、DID 身份认证
 
@@ -200,14 +210,22 @@ DID 文档将两者绑定：
 
 ```toml
 [dependencies]
+<<<<<<< HEAD
 diap-rs-sdk = "0.1.4"
 tokio = { version = "1.0", features = ["full"] }
+=======
+diap-rs-sdk = "0.1.3"
+>>>>>>> b87fb7798eff5be048264272b24547af69026a30
 ```
 
 ### 最小示例
 
 ```rust
+<<<<<<< HEAD
 use diap_rs_sdk::{DIAPSDK, AutoConfigOptions};
+=======
+use DIAP::{DIAPSDK, AutoConfigOptions};
+>>>>>>> b87fb7798eff5be048264272b24547af69026a30
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {

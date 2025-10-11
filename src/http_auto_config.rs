@@ -1,5 +1,6 @@
 /**
- * ANP HTTP端口自动配置模块 - Rust版本
+ * DIAP HTTP端口自动配置模块 - Rust版本
+ * Decentralized Intelligent Agent Protocol
  * 提供端口自动分配、HTTP服务器自动启动等功能
  */
 
@@ -232,14 +233,14 @@ impl HTTPAutoConfig {
                 }
             });
 
-        // ANP API 路由: /anp/api
+        // DIAP API 路由: /diap/api
         let anp_api_route = warp::path!("anp" / "api")
             .and(warp::post())
             .and(warp::body::json())
             .map(|body: serde_json::Value| {
-                // 简单的回显响应，实际应用中应该处理 ANP 协议消息
+                // 简单的回显响应，实际应用中应该处理 DIAP 协议消息
                 warp::reply::json(&serde_json::json!({
-                    "response": "ANP message received",
+                    "response": "DIAP message received",
                     "echo": body,
                     "timestamp": chrono::Utc::now().to_rfc3339()
                 }))
