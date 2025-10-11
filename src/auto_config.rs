@@ -1,5 +1,6 @@
 /**
- * ANP协议自动配置模块 - Rust版本
+ * DIAP协议自动配置模块 - Rust版本
+ * Decentralized Intelligent Agent Protocol
  * 提供端口自动分配、DID自动生成、HTTP服务器自动启动等功能
  */
 
@@ -11,7 +12,7 @@ use tokio::sync::RwLock;
 
 use crate::http_auto_config::{HTTPAutoConfig, HTTPAutoConfigOptions, HTTPConfig};
 use crate::did_auto_config::{DIDAutoConfig, DIDAutoConfigOptions, DIDConfig, AgentInterface};
-use crate::anp_key_generator::KeyType;
+use crate::diap_key_generator::KeyType;
 use crate::ipfs_registry::{IpfsRegistry, IpfsRegistryConfig, AgentRegistryEntry};
 
 // 类型定义
@@ -53,7 +54,7 @@ pub struct AgentConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ANPRequest {
+pub struct DIAPRequest {
     pub content: Option<String>,
     pub message: Option<String>,
     #[serde(flatten)]
@@ -61,7 +62,7 @@ pub struct ANPRequest {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ANPResponse {
+pub struct DIAPResponse {
     pub response: String,
     pub timestamp: String,
     pub did: String,
@@ -92,7 +93,7 @@ impl AutoConfigAgent {
 
     /// 核心方法：自动配置所有内容
     pub async fn auto_setup(&mut self) -> Result<AgentConfig> {
-        info!("🔄 ANP SDK: 开始自动配置...");
+        info!("🔄 DIAP SDK: 开始自动配置...");
         
         // 步骤1: 配置HTTP服务器
         let http_setup = self.setup_http_server().await?;
@@ -123,7 +124,7 @@ impl AutoConfigAgent {
         };
         
         *self.is_running.write().await = true;
-        info!("🎉 ANP SDK: 自动配置完成！");
+        info!("🎉 DIAP SDK: 自动配置完成！");
         
         Ok(self.get_config_with_ipfs(&http_setup, &did_setup, ipfs_cid).await)
     }
@@ -329,17 +330,17 @@ impl AutoConfigAgent {
 }
 
 /**
- * ANP客户端结构体
+ * DIAP客户端结构体
  */
-pub struct ANPClient {
+pub struct DIAPClient {
     did: String,
     #[allow(dead_code)]
     private_key: String,
     client: reqwest::Client,
 }
 
-impl ANPClient {
-    /// 创建新的ANP客户端
+impl DIAPClient {
+    /// 创建新的DIAP客户端
     pub fn new(did: String, private_key: String) -> Self {
         Self {
             did,
@@ -349,7 +350,7 @@ impl ANPClient {
     }
 
     /// 发送请求到其他智能体
-    pub async fn send_request(&self, target_url: &str, message: ANPRequest) -> Result<ANPResponse> {
+    pub async fn send_request(&self, target_url: &str, message: DIAPRequest) -> Result<DIAPResponse> {
         let signature = self.generate_signature(&message);
         
         let response = self.client
@@ -364,12 +365,12 @@ impl ANPClient {
             return Err(anyhow::anyhow!("HTTP {}: {}", response.status(), response.status()));
         }
         
-        let anp_response: ANPResponse = response.json().await?;
-        Ok(anp_response)
+        let diap_response: DIAPResponse = response.json().await?;
+        Ok(diap_response)
     }
 
     /// 生成签名（简化版）
-    fn generate_signature(&self, _data: &ANPRequest) -> String {
+    fn generate_signature(&self, _data: &DIAPRequest) -> String {
         // 这里应该实现完整的DID签名
         // 为了演示，返回一个模拟签名
         format!("mock_signature_{}", chrono::Utc::now().timestamp())
@@ -377,16 +378,16 @@ impl ANPClient {
 }
 
 /**
- * ANP SDK主结构体
+ * DIAP SDK主结构体
  */
-pub struct ANPSDK {
+pub struct DIAPSDK {
     options: AutoConfigOptions,
     agent: Option<AutoConfigAgent>,
     is_running: Arc<RwLock<bool>>,
 }
 
-impl ANPSDK {
-    /// 创建新的ANP SDK实例
+impl DIAPSDK {
+    /// 创建新的DIAP SDK实例
     pub fn new(options: AutoConfigOptions) -> Self {
         Self {
             options,
@@ -420,8 +421,8 @@ impl ANPSDK {
     }
 
     /// 创建客户端
-    pub fn create_client(&self, did: String, private_key: String) -> ANPClient {
-        ANPClient::new(did, private_key)
+    pub fn create_client(&self, did: String, private_key: String) -> DIAPClient {
+        DIAPClient::new(did, private_key)
     }
 
     /// 检查是否正在运行

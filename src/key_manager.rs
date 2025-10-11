@@ -1,4 +1,5 @@
-// ANP Rust SDK - 密钥管理模块
+// DIAP Rust SDK - 密钥管理模块
+// Decentralized Intelligent Agent Protocol
 // 负责密钥的生成、存储、加载和导出
 
 use ed25519_dalek::{SigningKey, VerifyingKey, Signature, Signer, Verifier};

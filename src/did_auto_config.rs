@@ -1,5 +1,5 @@
 /**
- * ANP DID文档自动配置模块 - Rust版本
+ * DIAP DID文档自动配置模块 - Rust版本
  * 提供DID自动生成、DID文档自动配置等功能
  */
 
@@ -8,7 +8,7 @@ use anyhow::Result;
 use log::info;
 use chrono::Utc;
 
-use crate::anp_key_generator::{ANPKeyGenerator, KeyType, DIDDocument, Service};
+use crate::diap_key_generator::{DIAPKeyGenerator, KeyType, DIDDocument, Service};
 
 // 类型定义
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -157,8 +157,8 @@ impl DIDAutoConfig {
             domain.to_string()
         };
         
-        // 使用ANP密钥生成器
-        let generator = ANPKeyGenerator::new(full_domain, Some("auto-agent".to_string()));
+        // 使用DIAP密钥生成器
+        let generator = DIAPKeyGenerator::new(full_domain, Some("auto-agent".to_string()));
         let key_type = self.options.key_type.clone().unwrap_or(KeyType::Ed25519);
         let key_pair = generator.generate_keypair(key_type)?;
         

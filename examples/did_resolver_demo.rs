@@ -1,8 +1,8 @@
-// ANP Rust SDK - DID解析示例
+// DIAP Rust SDK - DID解析示例
 // 演示如何解析不同格式的DID
 
-use anp_rs_sdk::{
-    ANPConfig, IpfsClient, IpnsPublisher, DIDResolver,
+use diap_rs_sdk::{
+    DIAPConfig, IpfsClient, IpnsPublisher, DIDResolver,
 };
 use anyhow::Result;
 
@@ -10,10 +10,10 @@ use anyhow::Result;
 async fn main() -> Result<()> {
     env_logger::init();
     
-    println!("=== ANP DID解析器示例 ===\n");
+    println!("=== DIAP DID解析器示例 ===\n");
     
     // 加载配置
-    let config = ANPConfig::load()?;
+    let config = DIAPConfig::load()?;
     
     // 初始化IPFS客户端
     let ipfs_client = IpfsClient::new(

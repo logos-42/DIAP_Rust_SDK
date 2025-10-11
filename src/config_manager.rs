@@ -1,4 +1,5 @@
-// ANP Rust SDK - 配置管理模块
+// DIAP Rust SDK - 配置管理模块
+// Decentralized Intelligent Agent Protocol
 // 负责加载、保存和管理SDK配置
 
 use serde::{Deserialize, Serialize};
@@ -8,7 +9,7 @@ use directories::ProjectDirs;
 
 /// SDK配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ANPConfig {
+pub struct DIAPConfig {
     /// 智能体配置
     pub agent: AgentConfig,
     
@@ -110,9 +111,9 @@ fn default_cache_ttl() -> u64 { 21600 } // 6小时
 fn default_cache_max_entries() -> usize { 1000 }
 fn default_log_level() -> String { "info".to_string() }
 
-impl Default for ANPConfig {
+impl Default for DIAPConfig {
     fn default() -> Self {
-        let dirs = ProjectDirs::from("com", "anp", "anp-rs-sdk")
+        let dirs = ProjectDirs::from("com", "diap", "diap-rs-sdk")
             .expect("无法获取项目目录");
         
         Self {
@@ -146,13 +147,13 @@ impl Default for ANPConfig {
     }
 }
 
-impl ANPConfig {
+impl DIAPConfig {
     /// 从文件加载配置
     pub fn from_file(path: &PathBuf) -> Result<Self> {
         let content = std::fs::read_to_string(path)
             .with_context(|| format!("无法读取配置文件: {:?}", path))?;
         
-        let config: ANPConfig = toml::from_str(&content)
+        let config: DIAPConfig = toml::from_str(&content)
             .with_context(|| format!("无法解析配置文件: {:?}", path))?;
         
         Ok(config)
@@ -177,7 +178,7 @@ impl ANPConfig {
     
     /// 获取默认配置文件路径
     pub fn default_config_path() -> PathBuf {
-        let dirs = ProjectDirs::from("com", "anp", "anp-rs-sdk")
+        let dirs = ProjectDirs::from("com", "diap", "diap-rs-sdk")
             .expect("无法获取项目目录");
         dirs.config_dir().join("config.toml")
     }

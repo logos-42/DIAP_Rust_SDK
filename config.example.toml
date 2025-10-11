@@ -1,12 +1,13 @@
-# ANP Rust SDK 配置示例文件
-# 复制此文件到 ~/.config/anp-rs-sdk/config.toml 并修改
+# DIAP Rust SDK 配置示例文件
+# Decentralized Intelligent Agent Protocol
+# 复制此文件到 ~/.config/diap-rs-sdk/config.toml 并修改
 
 [agent]
 # 智能体名称
-name = "My ANP Agent"
+name = "My DIAP Agent"
 
 # 私钥文件路径（会自动创建目录）
-private_key_path = "~/.local/share/anp-rs-sdk/keys/agent.key"
+private_key_path = "~/.local/share/diap-rs-sdk/keys/agent.key"
 
 # 如果私钥文件不存在，是否自动生成
 auto_generate_key = true
@@ -36,6 +37,24 @@ use_ipfs_node = true
 # IPNS记录有效期（天）
 validity_days = 365
 
+[http]
+# 是否自动分配端口
+auto_port = true
+
+# 端口范围
+port_range_start = 3000
+port_range_end = 4000
+
+# 绑定地址
+host = "127.0.0.1"
+
+[libp2p]
+# libp2p 监听地址
+listen_addresses = [
+    "/ip4/0.0.0.0/tcp/4001",
+    "/ip6/::/tcp/4001"
+]
+
 [cache]
 # 是否启用缓存（提升性能）
 enabled = true
@@ -47,7 +66,7 @@ ttl_seconds = 21600
 max_entries = 1000
 
 # 缓存目录（留空使用默认位置）
-# cache_dir = "~/.cache/anp-rs-sdk"
+# cache_dir = "~/.cache/diap-rs-sdk"
 
 [logging]
 # 日志级别: trace, debug, info, warn, error
@@ -69,6 +88,5 @@ level = "info"
 #
 # ===== 获取帮助 =====
 #
-# 文档: https://github.com/logos-42/AgentNetworkProtocol/tree/main/ANP-Rust-SDK
-# Discord: https://discord.gg/sFjBKTY7sB
-# Email: chgaowei@gmail.com
+# 文档: https://github.com/logos-42/DIAP_Rust_SDK
+# Email: yuanjieliu65@gmail.com

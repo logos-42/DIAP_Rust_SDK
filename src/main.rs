@@ -3,9 +3,9 @@
  * 演示如何使用ANP Rust SDK
  */
 
-use anp_rs_sdk::{
-    ANPSDK, AutoConfigOptions, AgentInterface,
-    anp_key_generator::{ANPKeyGenerator, KeyType}
+use diap_rs_sdk::{
+    DIAPSDK, AutoConfigOptions, AgentInterface,
+    diap_key_generator::{DIAPKeyGenerator, KeyType}
 };
 
 #[tokio::main]
@@ -77,11 +77,11 @@ async fn full_anp_agent_example() -> Result<(), Box<dyn std::error::Error>> {
         ..Default::default()
     };
 
-    let mut sdk = ANPSDK::new(options);
+    let mut sdk = DIAPSDK::new(options);
 
     match sdk.start().await {
         Ok(config) => {
-            println!("🎉 ANP智能体启动成功！");
+            println!("🎉 DIAP智能体启动成功！");
             println!("   - HTTP端点: {}", config.endpoint);
             println!("   - DID: {}", config.did);
             println!("   - 端口: {}", config.port);
@@ -133,7 +133,7 @@ async fn custom_config_example() -> Result<(), Box<dyn std::error::Error>> {
         ..Default::default()
     };
 
-    let mut sdk = ANPSDK::new(options);
+    let mut sdk = DIAPSDK::new(options);
 
     match sdk.start().await {
         Ok(config) => {

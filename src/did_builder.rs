@@ -1,4 +1,5 @@
-// ANP Rust SDK - DID文档构建模块
+// DIAP Rust SDK - DID文档构建模块
+// Decentralized Intelligent Agent Protocol
 // 实现DID文档的构建和双层验证逻辑
 
 use anyhow::{Context, Result};

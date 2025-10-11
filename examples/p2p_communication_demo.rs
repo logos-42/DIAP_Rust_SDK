@@ -1,8 +1,8 @@
-// ANP Rust SDK - P2P通信完整示例
+// DIAP Rust SDK - P2P通信完整示例
 // 演示如何实现完整的P2P发现、连接和通信
 
-use anp_rs_sdk::{
-    ANPConfig, KeyManager, LibP2PIdentityManager, LibP2PNode,
+use diap_rs_sdk::{
+    DIAPConfig, KeyManager, LibP2PIdentityManager, LibP2PNode,
     IpfsClient, IpnsPublisher, StartupManager, StartupConfig,
     DIDResolver, P2PCommunicator,
 };
@@ -13,7 +13,7 @@ use tokio::time::{sleep, Duration};
 async fn main() -> Result<()> {
     env_logger::init();
     
-    println!("=== ANP P2P通信完整示例 ===\n");
+    println!("=== DIAP P2P通信完整示例 ===\n");
     
     // 步骤1: 初始化Agent A
     println!("🤖 步骤1: 初始化Agent A");
@@ -163,7 +163,7 @@ struct AgentInfo {
 
 /// 创建智能体
 async fn create_agent(name: &str) -> Result<AgentInfo> {
-    let config = ANPConfig::load()?;
+    let config = DIAPConfig::load()?;
     
     // 创建专用的密钥路径
     let ipns_key_path = config.agent.private_key_path
@@ -225,7 +225,7 @@ async fn create_agent(name: &str) -> Result<AgentInfo> {
 
 /// 创建DID解析器
 async fn create_resolver() -> Result<DIDResolver> {
-    let config = ANPConfig::load()?;
+    let config = DIAPConfig::load()?;
     
     let ipfs_client = IpfsClient::new(
         config.ipfs.aws_api_url.clone(),

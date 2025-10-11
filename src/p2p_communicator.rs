@@ -1,5 +1,6 @@
-// ANP Rust SDK - P2P通信模块
-// 实现完整的libp2p Swarm和ANP协议通信
+// DIAP Rust SDK - P2P通信模块
+// Decentralized Intelligent Agent Protocol
+// 实现完整的libp2p Swarm和DIAP协议通信
 
 use anyhow::{Context, Result};
 use libp2p::{
@@ -12,9 +13,9 @@ use std::str::FromStr;
 use crate::libp2p_identity::LibP2PIdentity;
 use crate::did_resolver::DIDResolver;
 
-/// ANP协议消息
+/// DIAP协议消息
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ANPMessage {
+pub struct DIAPMessage {
     /// 消息类型
     pub msg_type: String,
     
@@ -37,9 +38,9 @@ pub struct ANPMessage {
     pub signature: String,
 }
 
-/// ANP协议响应
+/// DIAP协议响应
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ANPResponse {
+pub struct DIAPResponse {
     /// 响应类型
     pub response_type: String,
     
@@ -56,16 +57,16 @@ pub struct ANPResponse {
     pub signature: String,
 }
 
-// ANP协议编解码器（待实现）
+// DIAP协议编解码器（待实现）
 // TODO: 在后续版本实现完整的libp2p协议
 
-/// 简化的ANP网络行为（基础版本）
-pub struct ANPBehaviour {
+/// 简化的DIAP网络行为（基础版本）
+pub struct DIAPBehaviour {
     // 暂时为空，后续版本实现完整的NetworkBehaviour
 }
 
-impl ANPBehaviour {
-    /// 创建新的ANP行为
+impl DIAPBehaviour {
+    /// 创建新的DIAP行为
     pub fn new(_keypair: &Keypair) -> Result<Self> {
         Ok(Self {})
     }
@@ -155,7 +156,7 @@ impl P2PCommunicator {
         };
         
         // 构造ANP消息
-        let message = ANPMessage {
+        let message = DIAPMessage {
             msg_type: "message".to_string(),
             from: format!("did:ipfs:{}", self.identity.peer_id().to_base58()), // 注意：这里需要用IPNS DID
             to: target_did.to_string(),

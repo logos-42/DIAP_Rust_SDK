@@ -1,8 +1,8 @@
 // ANP Rust SDK - 批量上传示例
 // 演示如何批量创建和上传多个DID
 
-use anp_rs_sdk::{
-    ANPConfig, KeyPair, IpfsClient, IpnsPublisher, DIDBuilder, BatchUploader,
+use diap_rs_sdk::{
+    DIAPConfig, KeyPair, IpfsClient, IpnsPublisher, DIDBuilder, BatchUploader,
 };
 use anyhow::Result;
 
@@ -13,7 +13,7 @@ async fn main() -> Result<()> {
     println!("=== ANP 批量上传示例 ===\n");
     
     // 加载配置
-    let config = ANPConfig::load()?;
+    let config = DIAPConfig::load()?;
     
     // 初始化IPFS和IPNS
     let ipfs_client = IpfsClient::new(

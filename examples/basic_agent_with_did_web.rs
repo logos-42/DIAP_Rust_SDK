@@ -3,7 +3,7 @@
  * 展示：DID 生成、did:web 格式、HTTP 路由、真实文档输出
  */
 
-use anp_rs_sdk::{ANPSDK, AutoConfigOptions, AgentInterface};
+use diap_rs_sdk::{DIAPSDK, AutoConfigOptions, AgentInterface};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -37,7 +37,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     // 启动 SDK
-    let mut sdk = ANPSDK::new(options);
+    let mut sdk = DIAPSDK::new(options);
     
     match sdk.start().await {
         Ok(config) => {

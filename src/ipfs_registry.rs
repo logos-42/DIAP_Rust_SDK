@@ -61,7 +61,7 @@ impl IpfsRegistry {
 
     /// 发布智能体信息到 IPFS
     pub async fn publish_agent(&self, entry: AgentRegistryEntry) -> Result<String> {
-        info!("📤 发布智能体信息到 IPFS: {}", entry.did);
+        info!(" 发布智能体信息到 IPFS: {}", entry.did);
         
         // 序列化智能体信息为 JSON
         let json_data = serde_json::to_string_pretty(&entry)?;
@@ -93,8 +93,8 @@ impl IpfsRegistry {
             .ok_or_else(|| anyhow::anyhow!("IPFS 响应中未找到 Hash"))?
             .to_string();
         
-        info!("✅ 智能体信息已发布到 IPFS: {}", cid);
-        info!("🔗 访问地址: {}/ipfs/{}", self.config.gateway_url, cid);
+        info!(" 智能体信息已发布到 IPFS: {}", cid);
+        info!(" 访问地址: {}/ipfs/{}", self.config.gateway_url, cid);
         
         Ok(cid)
     }
@@ -115,14 +115,14 @@ impl IpfsRegistry {
         }
         
         let entry: AgentRegistryEntry = response.json().await?;
-        info!("✅ 成功查询智能体: {}", entry.did);
+        info!(" 成功查询智能体: {}", entry.did);
         
         Ok(entry)
     }
 
     /// 发布注册表索引（多个智能体的列表）
     pub async fn publish_registry_index(&self, entries: Vec<AgentRegistryEntry>) -> Result<String> {
-        info!("📤 发布注册表索引到 IPFS，共 {} 个智能体", entries.len());
+        info!("发布注册表索引到 IPFS，共 {} 个智能体", entries.len());
         
         let registry_index = RegistryIndex {
             version: "1.0".to_string(),

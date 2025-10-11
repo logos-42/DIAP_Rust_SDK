@@ -1,10 +1,10 @@
 /**
- * 完整 ANP 智能体示例（包含 IPFS 注册）
+ * 完整 DIAP 智能体示例（包含 IPFS 注册）
  * 展示：DID 生成、did:web 支持、HTTP 路由、IPFS 注册表
  */
 
-use anp_rs_sdk::{
-    ANPSDK, AutoConfigOptions, AgentInterface,
+use diap_rs_sdk::{
+    DIAPSDK, AutoConfigOptions, AgentInterface,
     IpfsRegistryConfig, IpfsRegistry, AgentSearchFilter,
 };
 
@@ -13,7 +13,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 初始化日志
     env_logger::init();
     
-    println!("\n🚀 完整 ANP 智能体示例（包含 IPFS 注册）");
+    println!("\n🚀 完整 DIAP 智能体示例（包含 IPFS 注册）");
     println!("==========================================\n");
     
     // 配置选项
@@ -40,7 +40,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     // 启动 SDK
-    let mut sdk = ANPSDK::new(options);
+    let mut sdk = DIAPSDK::new(options);
     
     match sdk.start().await {
         Ok(config) => {

@@ -1,4 +1,5 @@
-// ANP Rust SDK - 启动管理器模块
+// DIAP Rust SDK - 启动管理器模块
+// Decentralized Intelligent Agent Protocol
 // 负责智能体启动时自动更新DID文档，包含最新的libp2p多地址
 
 use anyhow::Result;

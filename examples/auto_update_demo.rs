@@ -1,8 +1,8 @@
-// ANP Rust SDK - 自动更新示例
+// DIAP Rust SDK - 自动更新示例
 // 演示如何使用自动更新管理器定期刷新IPNS
 
-use anp_rs_sdk::{
-    ANPConfig, KeyManager, IpfsClient, IpnsPublisher, DIDBuilder, AutoUpdateManager,
+use diap_rs_sdk::{
+    DIAPConfig, KeyManager, IpfsClient, IpnsPublisher, DIDBuilder, AutoUpdateManager,
 };
 use anyhow::Result;
 use tokio::time::{sleep, Duration};
@@ -14,7 +14,7 @@ async fn main() -> Result<()> {
     println!("=== ANP 自动更新示例 ===\n");
     
     // 加载配置
-    let config = ANPConfig::load()?;
+    let config = DIAPConfig::load()?;
     
     // 初始化密钥
     let key_manager = KeyManager::new(

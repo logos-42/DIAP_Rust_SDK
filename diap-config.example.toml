@@ -1,5 +1,6 @@
-# ANP SDK 配置文件示例
-# 复制此文件为 anp-config.toml 并根据需要修改
+# DIAP SDK 配置文件示例
+# Decentralized Intelligent Agent Protocol
+# 复制此文件为 diap-config.toml 并根据需要修改
 
 [ipfs.primary_node]
 # AWS IPFS节点配置（主节点）
@@ -29,7 +30,7 @@ fallback_to_ipfs = true
 
 [key_storage]
 # 密钥存储路径（支持 ~ 展开）
-path = "~/.anp/keys"
+path = "~/.diap/keys"
 # 是否加密存储
 encryption = true
 # 密钥文件名
@@ -39,7 +40,7 @@ filename = "agent_key.json"
 # 是否启用缓存
 enabled = true
 # 缓存存储路径
-path = "~/.anp/cache"
+path = "~/.diap/cache"
 # 缓存有效期（小时）
 ttl_hours = 6
 # 最大缓存条目数
@@ -49,7 +50,7 @@ max_entries = 1000
 # 日志级别: "trace", "debug", "info", "warn", "error"
 level = "info"
 # 日志输出路径（可选，不设置则输出到stdout）
-# file = "~/.anp/logs/anp.log"
+# file = "~/.diap/logs/diap.log"
 
 [update_scheduler]
 # 是否启用自动更新

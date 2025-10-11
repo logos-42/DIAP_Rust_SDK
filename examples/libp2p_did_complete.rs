@@ -1,8 +1,8 @@
-// ANP Rust SDK - libp2p + DID 完整示例
+// DIAP Rust SDK - libp2p + DID 完整示例
 // 演示如何使用libp2p实现完全去中心化的DID
 
-use anp_rs_sdk::{
-    ANPConfig, KeyManager, LibP2PIdentityManager, LibP2PNode,
+use diap_rs_sdk::{
+    DIAPConfig, KeyManager, LibP2PIdentityManager, LibP2PNode,
     IpfsClient, IpnsPublisher, StartupManager, StartupConfig,
 };
 use anyhow::Result;
@@ -15,7 +15,7 @@ async fn main() -> Result<()> {
     
     // 步骤1: 加载配置
     println!("📋 步骤1: 加载配置");
-    let config = ANPConfig::load()?;
+    let config = DIAPConfig::load()?;
     println!("✓ 配置加载成功\n");
     
     // 步骤2: 初始化IPNS密钥（用于DID标识）

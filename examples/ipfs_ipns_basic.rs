@@ -1,8 +1,8 @@
-// ANP Rust SDK - IPFS/IPNS基础示例
+// DIAP Rust SDK - IPFS/IPNS基础示例
 // 演示如何使用新的IPFS/IPNS功能创建和发布DID
 
-use anp_rs_sdk::{
-    ANPConfig, KeyManager, IpfsClient, IpnsPublisher, DIDBuilder,
+use diap_rs_sdk::{
+    DIAPConfig, KeyManager, IpfsClient, IpnsPublisher, DIDBuilder,
 };
 use anyhow::Result;
 
@@ -11,11 +11,11 @@ async fn main() -> Result<()> {
     // 初始化日志
     env_logger::init();
     
-    println!("=== ANP IPFS/IPNS 基础示例 ===\n");
+    println!("=== DIAP IPFS/IPNS 基础示例 ===\n");
     
     // 步骤1: 加载配置
     println!("📋 步骤1: 加载配置");
-    let config = ANPConfig::load()?;
+    let config = DIAPConfig::load()?;
     println!("✓ 配置加载成功\n");
     
     // 步骤2: 初始化密钥管理器

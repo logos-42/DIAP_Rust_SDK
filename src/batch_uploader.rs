@@ -1,4 +1,5 @@
-// ANP Rust SDK - 批量上传和自动更新模块
+// DIAP Rust SDK - 批量上传和自动更新模块
+// Decentralized Intelligent Agent Protocol
 // 支持批量上传多个DID文档和自动定时更新
 
 use anyhow::Result;

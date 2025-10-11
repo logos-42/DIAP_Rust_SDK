@@ -1,4 +1,5 @@
-// ANP Rust SDK - libp2p身份管理模块
+// DIAP Rust SDK - libp2p身份管理模块
+// Decentralized Intelligent Agent Protocol
 // 管理libp2p密钥对和PeerID，与IPNS密钥分离
 
 use anyhow::{Context, Result};

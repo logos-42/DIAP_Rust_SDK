@@ -1,4 +1,5 @@
-// ANP Rust SDK - IPFS客户端模块
+// DIAP Rust SDK - IPFS客户端模块
+// Decentralized Intelligent Agent Protocol
 // 支持AWS IPFS节点（优先）和Pinata（备用）
 
 use anyhow::{Context, Result};

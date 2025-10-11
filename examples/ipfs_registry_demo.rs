@@ -3,7 +3,7 @@
  * 展示如何发布和查询智能体信息到 IPFS
  */
 
-use anp_rs_sdk::{
+use diap_rs_sdk::{
     IpfsRegistry, IpfsRegistryConfig, AgentRegistryEntry,
     AgentSearchFilter,
 };

@@ -1,4 +1,5 @@
-// ANP Rust SDK - IPNS发布模块
+// DIAP Rust SDK - IPNS发布模块
+// Decentralized Intelligent Agent Protocol
 // 支持w3name（优先）和IPFS节点（备用）
 
 use anyhow::{Context, Result};

@@ -1,4 +1,5 @@
-// ANP Rust SDK - libp2p节点模块
+// DIAP Rust SDK - libp2p节点模块
+// Decentralized Intelligent Agent Protocol
 // 运行libp2p P2P节点，处理网络通信
 
 use anyhow::{Context, Result};

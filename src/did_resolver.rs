@@ -1,4 +1,5 @@
-// ANP Rust SDK - DID解析模块
+// DIAP Rust SDK - DID解析模块
+// Decentralized Intelligent Agent Protocol
 // 支持解析 did:ipfs 和 did:wba 格式的DID
 
 use anyhow::{Context, Result};

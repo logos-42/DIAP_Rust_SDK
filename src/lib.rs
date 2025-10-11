@@ -1,10 +1,11 @@
 /**
- * ANP Rust SDK 主入口文件
- * 整合所有ANP自动配置功能
+ * DIAP Rust SDK 主入口文件
+ * Decentralized Intelligent Agent Protocol
+ * 整合所有去中心化智能体协议自动配置功能
  */
 
 // 导出核心模块
-pub mod anp_key_generator;
+pub mod diap_key_generator;
 pub mod http_auto_config;
 pub mod did_auto_config;
 pub mod auto_config;
@@ -26,8 +27,8 @@ pub mod startup_manager;
 pub mod p2p_communicator;
 
 // 导出核心结构体和枚举
-pub use anp_key_generator::{
-    ANPKeyGenerator, KeyType, KeyPairResult, DIDDocument, 
+pub use diap_key_generator::{
+    DIAPKeyGenerator, KeyType, KeyPairResult, DIDDocument, 
     VerificationMethod, Service, SignatureData
 };
 
@@ -40,8 +41,8 @@ pub use did_auto_config::{
 };
 
 pub use auto_config::{
-    ANPSDK, AutoConfigAgent, ANPClient, AutoConfigOptions, 
-    AgentConfig, ANPRequest, ANPResponse as AutoConfigANPResponse
+    DIAPSDK, AutoConfigAgent, DIAPClient, AutoConfigOptions, 
+    AgentConfig, DIAPRequest, DIAPResponse as AutoConfigDIAPResponse
 };
 
 pub use ipfs_registry::{
@@ -51,7 +52,7 @@ pub use ipfs_registry::{
 
 // 新增模块导出
 pub use config_manager::{
-    ANPConfig, AgentConfig as ConfigAgentConfig, IpfsConfig, 
+    DIAPConfig, AgentConfig as ConfigAgentConfig, IpfsConfig, 
     IpnsConfig, CacheConfig, LoggingConfig
 };
 
@@ -99,7 +100,7 @@ pub use startup_manager::{
 };
 
 pub use p2p_communicator::{
-    P2PCommunicator, ANPMessage, ANPResponse
+    P2PCommunicator, DIAPMessage, DIAPResponse
 };
 
 // 重新导出常用类型
@@ -107,4 +108,4 @@ pub use serde::{Deserialize, Serialize};
 pub use anyhow::Result;
 
 // 默认导出主SDK结构体
-pub use ANPSDK as default;
+pub use DIAPSDK as default;

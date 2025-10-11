@@ -1,15 +1,15 @@
 [package]
-name = "anp-rs-sdk"
-version = "0.1.3"
+name = "diap-rs-sdk"
+version = "0.1.4"
 edition = "2021"
 authors = ["liuyuanjie <2844169590@qq.com>"]
-description = "ANP Rust SDK - 智能体网络协议自动配置工具包，提供HTTP服务器自动配置、DID自动生成、智能体描述等功能"
+description = "DIAP Rust SDK - Decentralized Intelligent Agent Protocol，提供完整的去中心化智能体基础设施，包括 libp2p P2P 网络、IPFS/IPNS 存储、DID 身份认证"
 license = "MIT"
-   repository = "https://github.com/logos-42/anp-rust-sdk"
+   repository = "https://github.com/logos-42/DIAP_Rust_SDK"
 homepage = "https://alou.fun"
 documentation = "https://alou.fun"
 readme = "README.md"
-keywords = ["anp", "agent", "rust", "sdk", "auto-config"]
+keywords = ["diap", "agent", "decentralized", "p2p", "ipfs"]
 categories = ["network-programming", "web-programming", "authentication", "cryptography", "asynchronous"]
 exclude = [
     
@@ -97,8 +97,8 @@ name = "basic_did_config"
 path = "examples/basic_did_config.rs"
 
 [[example]]
-name = "full_anp_agent"
-path = "examples/full_anp_agent.rs"
+name = "full_diap_agent"
+path = "examples/full_diap_agent.rs"
 
 [[example]]
 name = "custom_config"
