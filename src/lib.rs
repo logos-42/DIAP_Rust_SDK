@@ -26,6 +26,9 @@ pub mod libp2p_node;
 pub mod startup_manager;
 pub mod p2p_communicator;
 
+// 统一身份管理模块
+pub mod identity_manager;
+
 // 导出核心结构体和枚举
 pub use diap_key_generator::{
     DIAPKeyGenerator, KeyType, KeyPairResult, DIDDocument, 
@@ -101,6 +104,12 @@ pub use startup_manager::{
 
 pub use p2p_communicator::{
     P2PCommunicator, DIAPMessage, DIAPResponse
+};
+
+// 统一身份管理模块导出
+pub use identity_manager::{
+    IdentityManager, AgentInfo, ServiceInfo,
+    IdentityRegistration, IdentityVerification
 };
 
 // 重新导出常用类型

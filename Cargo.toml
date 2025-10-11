@@ -13,7 +13,11 @@ keywords = ["diap", "agent", "decentralized", "p2p", "ipfs"]
 categories = ["network-programming", "web-programming", "authentication", "cryptography", "asynchronous"]
 exclude = [
     
-    
+      "target/",
+    ".git/",
+    "*.log",
+    ".vscode/",
+    ".idea/",
 ]
 [dependencies]
 # HTTP服务器
@@ -88,23 +92,5 @@ dirs = "5.0"
 tokio-test = "0.4"
 tempfile = "3.8"
 
-[[example]]
-name = "basic_http_config"
-path = "examples/basic_http_config.rs"
-
-[[example]]
-name = "basic_did_config"
-path = "examples/basic_did_config.rs"
-
-[[example]]
-name = "full_diap_agent"
-path = "examples/full_diap_agent.rs"
-
-[[example]]
-name = "custom_config"
-path = "examples/custom_config.rs"
-
-[[example]]
-name = "ipfs_ipns_basic"
-path = "examples/ipfs_ipns_basic.rs"
+# 示例程序会自动从 examples/ 目录发现，无需显式配置
 
