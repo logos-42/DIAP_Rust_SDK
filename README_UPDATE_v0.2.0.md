@@ -1,8 +1,9 @@
-# ANP Rust SDK v0.2.0 - 重大更新
+# DIAP Rust SDK v0.2.0 - 重大更新
+# Decentralized Intelligent Agent Protocol
 
 ## 🎉 新版本发布
 
-ANP Rust SDK v0.2.0 带来了完整的IPFS/IPNS集成，实现了去中心化DID的创建、发布、解析和自动管理。
+DIAP Rust SDK v0.2.0 带来了完整的IPFS/IPNS集成，实现了去中心化DID的创建、发布、解析和自动管理。
 
 ---
 

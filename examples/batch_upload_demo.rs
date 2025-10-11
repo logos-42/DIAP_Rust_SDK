@@ -1,4 +1,4 @@
-// ANP Rust SDK - 批量上传示例
+// DIAP Rust SDK - 批量上传示例
 // 演示如何批量创建和上传多个DID
 
 use diap_rs_sdk::{
@@ -10,7 +10,7 @@ use anyhow::Result;
 async fn main() -> Result<()> {
     env_logger::init();
     
-    println!("=== ANP 批量上传示例 ===\n");
+    println!("=== DIAP 批量上传示例 ===\n");
     
     // 加载配置
     let config = DIAPConfig::load()?;

@@ -118,7 +118,7 @@ impl Default for DIAPConfig {
         
         Self {
             agent: AgentConfig {
-                name: "ANP Agent".to_string(),
+                name: "DIAP Agent".to_string(),
                 private_key_path: dirs.data_dir().join("keys/agent.key"),
                 auto_generate_key: true,
             },
@@ -234,17 +234,17 @@ mod tests {
     
     #[test]
     fn test_default_config() {
-        let config = ANPConfig::default();
-        assert_eq!(config.agent.name, "ANP Agent");
+        let config = DIAPConfig::default();
+        assert_eq!(config.agent.name, "DIAP Agent");
         assert!(config.cache.enabled);
         assert_eq!(config.logging.level, "info");
     }
     
     #[test]
     fn test_config_serialization() {
-        let config = ANPConfig::default();
+        let config = DIAPConfig::default();
         let toml_str = toml::to_string(&config).unwrap();
-        let deserialized: ANPConfig = toml::from_str(&toml_str).unwrap();
+        let deserialized: DIAPConfig = toml::from_str(&toml_str).unwrap();
         assert_eq!(config.agent.name, deserialized.agent.name);
     }
 }

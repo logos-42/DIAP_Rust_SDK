@@ -1,4 +1,5 @@
-# ANP Rust SDK - IPFS/IPNS 功能说明
+# DIAP Rust SDK - IPFS/IPNS 功能说明
+# Decentralized Intelligent Agent Protocol
 
 ## 🆕 v0.2.0 新增功能
 

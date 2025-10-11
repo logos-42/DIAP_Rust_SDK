@@ -11,7 +11,7 @@ use tokio::time::{sleep, Duration};
 async fn main() -> Result<()> {
     env_logger::init();
     
-    println!("=== ANP 自动更新示例 ===\n");
+    println!("=== DIAP 自动更新示例 ===\n");
     
     // 加载配置
     let config = DIAPConfig::load()?;

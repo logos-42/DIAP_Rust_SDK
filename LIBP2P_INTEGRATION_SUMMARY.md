@@ -1,4 +1,5 @@
-# ANP Rust SDK - libp2p集成完成总结
+# DIAP Rust SDK - libp2p集成完成总结
+# Decentralized Intelligent Agent Protocol
 
 ## 🎉 libp2p集成完成
 

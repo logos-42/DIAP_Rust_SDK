@@ -44,7 +44,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     match sdk.start().await {
         Ok(config) => {
-            println!("✅ ANP 智能体启动成功！\n");
+            println!("✅ DIAP 智能体启动成功！\n");
             println!("📋 配置信息:");
             println!("  - DID (wba): {}", config.did);
             if let Some(ref did_web) = config.did_web {
@@ -63,7 +63,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("  - 健康检查: {}/health", config.endpoint);
             println!("  - DID 文档: {}/.well-known/did.json", config.endpoint);
             println!("  - AD 文档: {}/agents/auto-agent/ad.json", config.endpoint);
-            println!("  - ANP API: {}/anp/api", config.endpoint);
+            println!("  - DIAP API: {}/diap/api", config.endpoint);
             
             // 测试 HTTP 端点
             println!("\n🧪 测试 HTTP 端点...");

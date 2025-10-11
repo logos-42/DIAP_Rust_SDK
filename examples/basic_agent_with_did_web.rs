@@ -1,5 +1,5 @@
 /**
- * 基础 ANP 智能体示例（包含 did:web 支持）
+ * 基础 DIAP 智能体示例（包含 did:web 支持）
  * 展示：DID 生成、did:web 格式、HTTP 路由、真实文档输出
  */
 
@@ -10,7 +10,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 初始化日志
     env_logger::init();
     
-    println!("\n🚀 基础 ANP 智能体示例");
+    println!("\n🚀 基础 DIAP 智能体示例");
     println!("==========================\n");
     
     // 配置选项
@@ -41,7 +41,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     match sdk.start().await {
         Ok(config) => {
-            println!("✅ ANP 智能体启动成功！\n");
+            println!("✅ DIAP 智能体启动成功！\n");
             
             println!("📋 DID 信息:");
             println!("  - DID (wba 格式): {}", config.did);
@@ -61,10 +61,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("  ┌─ DID 文档（符合 W3C DID 规范）");
             println!("  │  GET {}/.well-known/did.json", config.endpoint);
             println!("  │");
-            println!("  ┌─ 智能体描述（符合 ANP 规范）");
+            println!("  ┌─ 智能体描述（符合 DIAP 规范）");
             println!("  │  GET {}/agents/auto-agent/ad.json", config.endpoint);
             println!("  │");
-            println!("  └─ ANP 通信端点");
+            println!("  └─ DIAP 通信端点");
             println!("     POST {}/anp/api", config.endpoint);
             
             println!("\n💡 使用方法:");
@@ -144,10 +144,10 @@ async fn test_all_endpoints(base_url: &str) -> Result<(), Box<dyn std::error::Er
         Err(e) => println!("   ❌ 错误: {}\n", e),
     }
     
-    // 4. ANP API
-    println!("4️⃣  测试 ANP API 端点");
+    // 4. DIAP API
+    println!("4️⃣  测试 DIAP API 端点");
     let anp_request = serde_json::json!({
-        "message": "Hello from ANP SDK!",
+        "message": "Hello from DIAP SDK!",
         "timestamp": chrono::Utc::now().to_rfc3339()
     });
     match client.post(&format!("{}/anp/api", base_url))

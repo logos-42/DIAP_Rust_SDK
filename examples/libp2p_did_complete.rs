@@ -11,7 +11,7 @@ use anyhow::Result;
 async fn main() -> Result<()> {
     env_logger::init();
     
-    println!("=== ANP libp2p + DID 完整示例 ===\n");
+    println!("=== DIAP libp2p + DID 完整示例 ===\n");
     
     // 步骤1: 加载配置
     println!("📋 步骤1: 加载配置");

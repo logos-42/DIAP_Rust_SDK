@@ -214,7 +214,7 @@ impl DIDAutoConfig {
         if !has_default && self.options.service_endpoints.as_ref().map(|eps| eps.is_empty()).unwrap_or(true) {
             did_doc.service.as_mut().unwrap().push(Service {
                 id: "default".to_string(),
-                service_type: "ANPAgentService".to_string(),
+                service_type: "DIAPAgentService".to_string(),
                 service_endpoint: "http://localhost:3000/anp/api".to_string(),
             });
         }
@@ -242,9 +242,9 @@ impl DIDAutoConfig {
                 "ad": "https://service.agent-network-protocol.com/ad#"
             }),
             description_type: "ad:AgentDescription".to_string(),
-            name: self.options.agent_name.as_ref().unwrap_or(&"Auto-Configured ANP Agent".to_string()).clone(),
+            name: self.options.agent_name.as_ref().unwrap_or(&"Auto-Configured DIAP Agent".to_string()).clone(),
             did: self.auto_did.as_ref().unwrap().clone(),
-            description: self.options.agent_description.as_ref().unwrap_or(&"Automatically configured ANP agent via SDK".to_string()).clone(),
+            description: self.options.agent_description.as_ref().unwrap_or(&"Automatically configured DIAP agent via SDK".to_string()).clone(),
             version: self.options.agent_version.as_ref().unwrap_or(&"1.0.0".to_string()).clone(),
             created: Utc::now().to_rfc3339(),
             interfaces: interface_descriptions,
@@ -263,7 +263,7 @@ impl DIDAutoConfig {
             supported_protocols: vec![
                 Protocol {
                     protocol_type: "ad:Protocol".to_string(),
-                    name: "ANP".to_string(),
+                    name: "DIAP".to_string(),
                     version: "1.0".to_string(),
                     description: "Agent Network Protocol".to_string(),
                 }
@@ -430,8 +430,8 @@ impl Default for DIDAutoConfigOptions {
         Self {
             auto_did: Some(true),
             key_type: Some(KeyType::Ed25519),
-            agent_name: Some("Auto-Configured ANP Agent".to_string()),
-            agent_description: Some("Automatically configured ANP agent via SDK".to_string()),
+            agent_name: Some("Auto-Configured DIAP Agent".to_string()),
+            agent_description: Some("Automatically configured DIAP agent via SDK".to_string()),
             agent_version: Some("1.0.0".to_string()),
             interfaces: Some(vec![AgentInterface {
                 interface_type: "NaturalLanguageInterface".to_string(),

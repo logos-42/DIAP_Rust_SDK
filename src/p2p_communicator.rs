@@ -155,7 +155,7 @@ impl P2PCommunicator {
             self.connect_to_agent(target_did).await?
         };
         
-        // 构造ANP消息
+        // 构造DIAP消息
         let message = DIAPMessage {
             msg_type: "message".to_string(),
             from: format!("did:ipfs:{}", self.identity.peer_id().to_base58()), // 注意：这里需要用IPNS DID

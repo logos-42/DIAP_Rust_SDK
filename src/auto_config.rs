@@ -319,7 +319,7 @@ impl AutoConfigAgent {
             http_config.stop().await?;
         }
         *self.is_running.write().await = false;
-        info!("🛑 ANP Agent 已停止");
+        info!("🛑 DIAP Agent 已停止");
         Ok(())
     }
 
@@ -441,7 +441,7 @@ impl Default for AutoConfigOptions {
             auto_ipfs_register: Some(false), // 默认关闭，需要本地 IPFS 节点
             ipfs_config: None,
             port_range: Some((3000, 4000)),
-            agent_name: Some("Auto-Configured ANP Agent".to_string()),
+            agent_name: Some("Auto-Configured DIAP Agent".to_string()),
             interfaces: Some(vec![AgentInterface {
                 interface_type: "NaturalLanguageInterface".to_string(),
                 description: "Auto-configured natural language interface".to_string(),
@@ -475,7 +475,7 @@ mod tests {
     #[tokio::test]
     async fn test_anp_sdk() {
         let options = AutoConfigOptions::default();
-        let mut sdk = ANPSDK::new(options);
+        let mut sdk = DIAPSDK::new(options);
         
         let result = sdk.start().await;
         assert!(result.is_ok());
@@ -490,16 +490,16 @@ mod tests {
 
     #[tokio::test]
     async fn test_anp_client() {
-        let client = ANPClient::new("did:wba:test".to_string(), "test_key".to_string());
+        let client = DIAPClient::new("did:wba:test".to_string(), "test_key".to_string());
         
-        let request = ANPRequest {
+        let request = DIAPRequest {
             content: Some("Hello".to_string()),
             message: None,
             extra: std::collections::HashMap::new(),
         };
         
         // 注意：这个测试会失败，因为没有真实的服务器
-        // 在实际使用中，需要先启动一个ANP智能体
+        // 在实际使用中，需要先启动一个DIAP智能体
         let result = client.send_request("http://localhost:3000/anp/api", request).await;
         assert!(result.is_err()); // 预期失败，因为没有服务器
     }
