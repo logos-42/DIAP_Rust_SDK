@@ -6,7 +6,7 @@
 
 **DIAP (Decentralized Intelligent Agent Protocol)** - 基于零知识证明的去中心化智能体身份协议 Rust SDK
 
-> **🆕 v0.2.0 - ZKP重构版**: 使用零知识证明验证DID-CID绑定，移除IPNS依赖，大幅简化架构
+> **🆕 v0.2.1 - ZKP优化版**: 使用零知识证明验证DID-CID绑定，移除IPNS依赖，大幅简化架构
 
 ## 🎯 核心特性
 
@@ -142,7 +142,7 @@
 
 ```toml
 [dependencies]
-diap-rs-sdk = "0.2.0"
+diap-rs-sdk = "0.2.1"
 tokio = { version = "1.0", features = ["full"] }
 env_logger = "0.10"
 ```
@@ -165,7 +165,12 @@ async fn main() -> anyhow::Result<()> {
         None, None, 30,
     );
     
-    let identity_manager = IdentityManager::new(ipfs_client);
+    // 加载ZKP keys（需先运行 zkp_setup_keys 生成）
+    let identity_manager = IdentityManager::new_with_keys(
+        ipfs_client,
+        "zkp_proving.key",
+        "zkp_verifying.key",
+    )?;
     
     // 2. 生成密钥
     let keypair = KeyPair::generate()?;
@@ -222,10 +227,13 @@ async fn main() -> anyhow::Result<()> {
 ### 运行示例
 
 ```bash
-# 确保IPFS节点运行在 localhost:5001
+# 1. 首先生成ZKP可信设置（proving key和verifying key）
+cargo run --example zkp_setup_keys
+
+# 2. 确保IPFS节点运行在 localhost:5001
 ipfs daemon
 
-# 运行ZKP身份演示
+# 3. 运行ZKP身份演示
 cargo run --example zkp_identity_demo
 ```
 
@@ -296,7 +304,7 @@ cargo run --example zkp_identity_demo
 
 ## 🛣️ 路线图
 
-### ✅ v0.2.0 - ZKP基础（当前版本）
+### ✅ v0.2.1 - ZKP优化（当前版本）
 - [x] 移除IPNS依赖
 - [x] 实现PeerID加密
 - [x] 实现ZKP电路
@@ -322,6 +330,6 @@ MIT License - 查看 [LICENSE](LICENSE) 文件
 
 ---
 
-**版本**: 0.2.0  
+**版本**: 0.2.1  
 **发布日期**: 2025-10-12  
 **状态**: Beta - ZKP核心功能完整，适合开发使用

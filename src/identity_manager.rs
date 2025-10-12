@@ -90,12 +90,41 @@ pub struct IdentityManager {
 
 impl IdentityManager {
     /// 创建新的身份管理器
-    pub fn new(ipfs_client: IpfsClient) -> Self {
+    /// 
+    /// 需要提供已加载proving key和verifying key的ZKP证明器和验证器
+    pub fn new(
+        ipfs_client: IpfsClient,
+        zkp_prover: ZKPProver,
+        zkp_verifier: ZKPVerifier,
+    ) -> Self {
+        log::info!("🔐 创建IdentityManager（使用Groth16 ZKP）");
+        
         Self {
             ipfs_client,
-            zkp_prover: ZKPProver::new(),
-            zkp_verifier: ZKPVerifier::new(),
+            zkp_prover,
+            zkp_verifier,
         }
+    }
+    
+    /// 便捷构造函数：从文件路径创建身份管理器
+    pub fn new_with_keys(
+        ipfs_client: IpfsClient,
+        pk_path: &str,
+        vk_path: &str,
+    ) -> Result<Self> {
+        log::info!("🔐 从文件加载ZKP keys创建IdentityManager");
+        
+        // 创建并加载proving key
+        let mut zkp_prover = ZKPProver::new();
+        zkp_prover.load_proving_key(pk_path)?;
+        
+        // 创建并加载verifying key
+        let mut zkp_verifier = ZKPVerifier::new();
+        zkp_verifier.load_verifying_key(vk_path)?;
+        
+        log::info!("✅ ZKP keys加载完成");
+        
+        Ok(Self::new(ipfs_client, zkp_prover, zkp_verifier))
     }
     
     /// 📝 注册身份（简化流程：一次上传 + ZKP绑定）
@@ -142,7 +171,7 @@ impl IdentityManager {
         _cid: &str,
         nonce: &[u8],
     ) -> Result<ProofResult> {
-        log::info!("🔐 生成DID-CID绑定证明");
+        log::info!("🔐 生成DID-CID绑定证明（Groth16）");
         
         // 计算DID文档的哈希
         use blake2::{Blake2s256, Digest};
@@ -152,15 +181,15 @@ impl IdentityManager {
         // 使用私钥生成证明
         let signing_key = SigningKey::from_bytes(&keypair.private_key);
         
-        // 使用模拟证明（实际应使用真实ZKP）
-        let proof = self.zkp_prover.prove_mock(
+        // 生成Groth16证明
+        let proof = self.zkp_prover.prove(
             &signing_key,
             &did_json,
             nonce,
             hash.as_slice(),
         )?;
         
-        log::info!("✅ 证明生成成功");
+        log::info!("✅ ZKP证明生成成功");
         Ok(proof)
     }
     
@@ -190,8 +219,8 @@ impl IdentityManager {
         let public_key = self.extract_public_key(&did_document)?;
         verification_details.push(format!("✓ 公钥提取成功"));
         
-        // 步骤4: 验证ZKP证明
-        let zkp_valid = self.zkp_verifier.verify_mock(
+        // 步骤4: 验证ZKP证明（Groth16）
+        let zkp_valid = self.zkp_verifier.verify(
             zkp_proof,
             nonce,
             hash.as_slice(),

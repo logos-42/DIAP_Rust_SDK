@@ -119,33 +119,6 @@ impl ZKPProver {
             timestamp: chrono::Utc::now().to_rfc3339(),
         })
     }
-    
-    /// 快速证明（用于测试，不使用实际ZKP）
-    pub fn prove_mock(
-        &self,
-        secret_key: &SigningKey,
-        _did_document: &str,
-        nonce: &[u8],
-        cid_hash: &[u8],
-    ) -> Result<ProofResult> {
-        log::warn!("⚠️  使用模拟证明（非真实ZKP）");
-        
-        let verifying_key = secret_key.verifying_key();
-        let public_key_bytes = verifying_key.to_bytes();
-        
-        // 创建模拟证明
-        let mock_proof = vec![0u8; 192]; // Groth16证明约192字节
-        
-        Ok(ProofResult {
-            proof: mock_proof,
-            public_inputs: vec![
-                nonce.to_vec(),
-                cid_hash.to_vec(),
-                public_key_bytes.to_vec(),
-            ],
-            timestamp: chrono::Utc::now().to_rfc3339(),
-        })
-    }
 }
 
 /// ZKP验证器
@@ -225,25 +198,6 @@ impl ZKPVerifier {
         
         Ok(is_valid)
     }
-    
-    /// 快速验证（模拟，用于测试）
-    pub fn verify_mock(
-        &self,
-        proof_bytes: &[u8],
-        nonce: &[u8],
-        cid_hash: &[u8],
-        _expected_public_key: &[u8],
-    ) -> Result<bool> {
-        log::warn!("⚠️  使用模拟验证（非真实ZKP）");
-        
-        // 简单验证证明不为空
-        if proof_bytes.is_empty() || nonce.is_empty() || cid_hash.is_empty() {
-            return Ok(false);
-        }
-        
-        log::info!("✅ 模拟验证通过");
-        Ok(true)
-    }
 }
 
 /// 生成可信设置（仅用于开发测试）
@@ -266,41 +220,26 @@ pub fn generate_trusted_setup() -> Result<(ProvingKey<Bn254>, VerifyingKey<Bn254
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ed25519_dalek::SigningKey;
-    use rand::thread_rng;
     
     #[test]
-    fn test_mock_prove_verify() {
-        // 生成测试密钥
-        use rand::RngCore;
-        let mut secret_bytes = [0u8; 32];
-        thread_rng().fill_bytes(&mut secret_bytes);
-        let signing_key = SigningKey::from_bytes(&secret_bytes);
-        let verifying_key = signing_key.verifying_key();
+    fn test_prover_verifier_creation() {
+        let _prover = ZKPProver::new();
+        let _verifier = ZKPVerifier::new();
+        println!("✓ ZKP证明器和验证器创建成功");
+    }
+    
+    #[test]
+    #[ignore] // 需要可信设置，耗时较长
+    fn test_trusted_setup() {
+        let result = generate_trusted_setup();
+        assert!(result.is_ok(), "可信设置失败: {:?}", result.err());
         
-        // 构造测试数据
-        let did_doc = r#"{"id":"did:key:z123"}"#;
-        let nonce = b"test_nonce_12345";
-        let cid_hash = vec![1u8; 32];
-        
-        // 证明
-        let prover = ZKPProver::new();
-        let proof_result = prover.prove_mock(&signing_key, did_doc, nonce, &cid_hash).unwrap();
-        
-        println!("✓ 模拟证明生成成功");
-        println!("  证明大小: {} 字节", proof_result.proof.len());
-        
-        // 验证
-        let verifier = ZKPVerifier::new();
-        let is_valid = verifier.verify_mock(
-            &proof_result.proof,
-            nonce,
-            &cid_hash,
-            verifying_key.as_bytes(),
-        ).unwrap();
-        
-        assert!(is_valid);
-        println!("✓ 模拟验证通过");
+        let (pk, vk) = result.unwrap();
+        println!("✓ 可信设置完成");
+        println!("  Proving key大小: {} bytes", 
+            ark_serialize::CanonicalSerialize::serialized_size(&pk, ark_serialize::Compress::No));
+        println!("  Verifying key大小: {} bytes",
+            ark_serialize::CanonicalSerialize::serialized_size(&vk, ark_serialize::Compress::No));
     }
 }
 

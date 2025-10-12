@@ -26,6 +26,7 @@ pub mod encrypted_peer_id;
 // ZKP模块
 pub mod zkp_circuit;
 pub mod zkp_prover;
+pub mod zkp_setup;
 
 // 统一身份管理
 pub mod identity_manager;
@@ -87,6 +88,10 @@ pub use zkp_prover::{
     ZKPVerifier,
     ProofResult,
     generate_trusted_setup,
+};
+
+pub use zkp_setup::{
+    ZKPSetup,
 };
 
 // 身份管理

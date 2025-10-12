@@ -21,6 +21,9 @@ async fn main() -> Result<()> {
     
     // ==================== 第1步：初始化 ====================
     println!("📦 第1步：初始化组件");
+    println!("  注意：此演示需要先生成ZKP keys");
+    println!("  运行: cargo run --example zkp_setup_keys");
+    println!();
     
     let ipfs_client = IpfsClient::new(
         Some("http://localhost:5001".to_string()),
@@ -28,10 +31,27 @@ async fn main() -> Result<()> {
         None, None, 30,
     );
     
-    let identity_manager = IdentityManager::new(ipfs_client);
-    
-    println!("✓ IPFS客户端已连接");
-    println!("✓ 身份管理器已创建\n");
+    // 尝试加载ZKP keys
+    let identity_manager = match IdentityManager::new_with_keys(
+        ipfs_client.clone(),
+        "zkp_proving.key",
+        "zkp_verifying.key",
+    ) {
+        Ok(manager) => {
+            println!("✓ IPFS客户端已连接");
+            println!("✓ ZKP keys已加载");
+            println!("✓ 身份管理器已创建（使用真实Groth16 ZKP）\n");
+            manager
+        }
+        Err(e) => {
+            eprintln!("❌ 无法加载ZKP keys: {}", e);
+            eprintln!();
+            eprintln!("请先生成ZKP keys:");
+            eprintln!("  cargo run --example zkp_setup_keys");
+            eprintln!();
+            return Err(e);
+        }
+    };
     
     // ==================== 第2步：生成密钥 ====================
     println!("🔑 第2步：生成密钥对");
@@ -41,6 +61,10 @@ async fn main() -> Result<()> {
     println!("✓ DID密钥生成完成");
     println!("  DID: {}", keypair.did);
     println!("  类型: did:key (Ed25519)");
+    
+    // 验证DID格式
+    assert!(keypair.did.starts_with("did:key:z"), "DID格式应为 did:key:z...");
+    println!("  ✓ DID格式验证通过");
     
     // libp2p PeerID
     let libp2p_keypair = LibP2PKeypair::generate_ed25519();
@@ -84,7 +108,7 @@ async fn main() -> Result<()> {
     println!();
     
     // ==================== 第5步：生成ZKP证明 ====================
-    println!("🔐 第5步：生成DID-CID绑定证明");
+    println!("🔐 第5步：生成DID-CID绑定证明（Groth16）");
     
     let nonce = b"challenge_nonce_from_resource_node_12345";
     println!("  挑战nonce: {:?}", String::from_utf8_lossy(nonce));
@@ -143,15 +167,17 @@ async fn main() -> Result<()> {
     println!("✅ 演示完成！");
     println!();
     println!("关键特性：");
-    println!("  ✓ 无需IPNS，简化流程");
-    println!("  ✓ DID-CID通过ZKP强绑定");
+    println!("  ✓ 使用 did:key 标准格式");
+   
+    println!("  ✓ DID-CID通过Groth16 ZKP强绑定");
     println!("  ✓ PeerID加密保护隐私");
     println!("  ✓ 完全去中心化验证");
     println!();
     println!("安全保障：");
+    println!("  • 零知识证明：使用Groth16 SNARK");
     println!("  • 哈希绑定：H(DID文档) == CID");
-    println!("  • 密钥证明：证明持有私钥");
-    println!("  • 加密PeerID：只有私钥持有者能解密");
+    println!("  • 密钥证明：证明持有私钥（无需暴露）");
+    println!("  • 加密PeerID：AES-256-GCM加密");
     println!("  • 防重放：每次使用新nonce");
     println!("========================================\n");
     

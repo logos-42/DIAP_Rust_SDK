@@ -7,7 +7,6 @@ use rand::rngs::OsRng;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use anyhow::{Context, Result};
-use sha2::{Sha256, Digest};
 use bs58;
 use base64::{Engine as _, engine::general_purpose};
 
@@ -20,10 +19,7 @@ pub struct KeyPair {
     /// 公钥（32字节）
     pub public_key: [u8; 32],
     
-    /// IPNS名称（从公钥派生）
-    pub ipns_name: String,
-    
-    /// DID标识符
+    /// DID标识符（did:key格式）
     pub did: String,
 }
 
@@ -39,10 +35,7 @@ struct KeyFile {
     /// 公钥（hex编码）
     public_key: String,
     
-    /// IPNS名称
-    ipns_name: String,
-    
-    /// DID
+    /// DID（did:key格式）
     did: String,
     
     /// 创建时间
@@ -79,16 +72,12 @@ impl KeyPair {
         let private_key: [u8; 32] = signing_key.to_bytes();
         let public_key: [u8; 32] = verifying_key.to_bytes();
         
-        // 从公钥派生IPNS名称
-        let ipns_name = Self::derive_ipns_name(&public_key)?;
-        
-        // 构造DID
-        let did = format!("did:ipfs:{}", ipns_name);
+        // 构造 did:key 格式的 DID
+        let did = Self::derive_did_key(&public_key)?;
         
         Ok(Self {
             private_key,
             public_key,
-            ipns_name,
             did,
         })
     }
@@ -99,13 +88,11 @@ impl KeyPair {
         let verifying_key = signing_key.verifying_key();
         let public_key: [u8; 32] = verifying_key.to_bytes();
         
-        let ipns_name = Self::derive_ipns_name(&public_key)?;
-        let did = format!("did:ipfs:{}", ipns_name);
+        let did = Self::derive_did_key(&public_key)?;
         
         Ok(Self {
             private_key,
             public_key,
-            ipns_name,
             did,
         })
     }
@@ -144,10 +131,9 @@ impl KeyPair {
             key_type: "Ed25519".to_string(),
             private_key: hex::encode(self.private_key),
             public_key: hex::encode(self.public_key),
-            ipns_name: self.ipns_name.clone(),
             did: self.did.clone(),
             created_at: chrono::Utc::now().to_rfc3339(),
-            version: "1.0".to_string(),
+            version: "2.0".to_string(),
         };
         
         let content = serde_json::to_string_pretty(&key_file)
@@ -175,10 +161,9 @@ impl KeyPair {
             key_type: "Ed25519".to_string(),
             private_key: hex::encode(self.private_key),
             public_key: hex::encode(self.public_key),
-            ipns_name: self.ipns_name.clone(),
             did: self.did.clone(),
             created_at: chrono::Utc::now().to_rfc3339(),
-            version: "1.0".to_string(),
+            version: "2.0".to_string(),
         };
         
         let json_data = serde_json::to_string(&key_file)?;
@@ -239,24 +224,20 @@ impl KeyPair {
         Ok(verifying_key.verify(data, &sig).is_ok())
     }
     
-    /// 从公钥派生IPNS名称
-    /// 使用libp2p规范：multihash(sha256(public_key))
-    fn derive_ipns_name(public_key: &[u8; 32]) -> Result<String> {
-        // 1. 计算SHA-256哈希
-        let mut hasher = Sha256::new();
-        hasher.update(public_key);
-        let hash = hasher.finalize();
+    /// 从公钥派生 did:key 标识符
+    /// 使用 W3C DID 规范的 did:key 方法
+    /// 格式: did:key:z<multibase-multicodec-pubkey>
+    fn derive_did_key(public_key: &[u8; 32]) -> Result<String> {
+        // Ed25519 公钥的 multicodec 前缀是 0xed01
+        // 参考: https://github.com/multiformats/multicodec/blob/master/table.csv
+        let mut multicodec_pubkey = vec![0xed, 0x01];
+        multicodec_pubkey.extend_from_slice(public_key);
         
-        // 2. 创建multihash（0x12 = sha2-256, 0x20 = 32 bytes）
-        let mut multihash = vec![0x12, 0x20];
-        multihash.extend_from_slice(&hash);
+        // 使用 base58btc 编码（前缀 'z'）
+        let multibase_key = format!("z{}", bs58::encode(&multicodec_pubkey).into_string());
         
-        // 3. Base58编码
-        let ipns_name = bs58::encode(&multihash).into_string();
-        
-        // 4. 添加k51前缀（CIDv1格式）
-        // 注意：实际的IPNS名称格式可能需要调整
-        Ok(format!("k51qzi5uqu5d{}", &ipns_name[..40]))
+        // 构造 did:key DID
+        Ok(format!("did:key:{}", multibase_key))
     }
     
     /// 加密数据（简单实现，生产环境应使用更强的加密）
@@ -311,7 +292,8 @@ mod tests {
         let keypair = KeyPair::generate().unwrap();
         assert_eq!(keypair.private_key.len(), 32);
         assert_eq!(keypair.public_key.len(), 32);
-        assert!(keypair.did.starts_with("did:ipfs:"));
+        assert!(keypair.did.starts_with("did:key:z"));
+        println!("Generated DID: {}", keypair.did);
     }
     
     #[test]

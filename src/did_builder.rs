@@ -218,6 +218,7 @@ pub async fn get_did_document_from_cid(
 }
 
 /// 验证DID文档的完整性（通过哈希）
+/// 验证DID文档的SHA-256哈希是否与CID的multihash部分匹配
 pub fn verify_did_document_integrity(
     did_doc: &DIDDocument,
     expected_cid: &str,
@@ -226,24 +227,52 @@ pub fn verify_did_document_integrity(
     use cid::Cid;
     use std::str::FromStr;
     
-    // 序列化DID文档
+    log::info!("验证DID文档完整性与CID绑定");
+    
+    // 1. 序列化DID文档（使用确定性序列化）
     let json = serde_json::to_string(did_doc)
         .context("序列化DID文档失败")?;
     
-    // 计算哈希
-    let hash = Sha256::digest(json.as_bytes());
+    log::debug!("  DID文档大小: {} 字节", json.len());
     
-    // 解析CID
+    // 2. 计算文档的SHA-256哈希
+    let computed_hash = Sha256::digest(json.as_bytes());
+    log::debug!("  计算的哈希: {}", hex::encode(&computed_hash));
+    
+    // 3. 解析CID
     let cid = Cid::from_str(expected_cid)
         .context("解析CID失败")?;
     
-    // 比较哈希（简化版，实际需要考虑CID的multihash格式）
-    log::info!("验证DID文档完整性");
-    log::debug!("  计算的哈希: {:x}", hash);
-    log::debug!("  CID: {}", cid);
+    log::debug!("  CID版本: {:?}", cid.version());
+    log::debug!("  CID codec: {:?}", cid.codec());
     
-    // TODO: 实际应该比较CID的multihash部分
-    Ok(true)
+    // 4. 提取CID的multihash部分
+    let multihash = cid.hash();
+    let hash_code = multihash.code();
+    let hash_digest = multihash.digest();
+    
+    log::debug!("  Multihash code: 0x{:x}", hash_code);
+    log::debug!("  Multihash digest: {}", hex::encode(hash_digest));
+    
+    // 5. 验证哈希算法（应该是SHA-256, code = 0x12）
+    if hash_code != 0x12 {
+        log::warn!("  ⚠️ CID使用的不是SHA-256哈希（code: 0x{:x}）", hash_code);
+        // 注意：IPFS可能使用不同的哈希算法，这是正常的
+        // 我们仍然可以验证，但需要相应地计算哈希
+    }
+    
+    // 6. 比较哈希值
+    let hashes_match = computed_hash.as_slice() == hash_digest;
+    
+    if hashes_match {
+        log::info!("✅ DID文档哈希与CID匹配");
+    } else {
+        log::warn!("❌ DID文档哈希与CID不匹配");
+        log::debug!("  预期: {}", hex::encode(hash_digest));
+        log::debug!("  实际: {}", hex::encode(&computed_hash));
+    }
+    
+    Ok(hashes_match)
 }
 
 #[cfg(test)]
