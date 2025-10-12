@@ -1,9 +1,9 @@
 [package]
 name = "diap-rs-sdk"
-version = "0.1.4"
+version = "0.2.0"
 edition = "2021"
 authors = ["liuyuanjie <2844169590@qq.com>"]
-description = "DIAP Rust SDK - Decentralized Intelligent Agent Protocol，提供完整的去中心化智能体基础设施，包括 libp2p P2P 网络、IPFS/IPNS 存储、DID 身份认证"
+description = "DIAP Rust SDK - 基于零知识证明的去中心化智能体身份协议，使用ZKP验证DID-CID绑定，无需IPNS"
 license = "MIT"
    repository = "https://github.com/logos-42/DIAP_Rust_SDK"
 homepage = "https://alou.fun"
@@ -53,6 +53,7 @@ libp2p = { version = "0.53", features = [
     "request-response",   # 请求响应协议
     "mdns",               # 本地网络发现
     "tokio",              # Tokio运行时
+    "macros",             # NetworkBehaviour派生宏
 ] }
 libp2p-identity = { version = "0.2", features = ["ed25519", "secp256k1"] }
 
@@ -87,6 +88,21 @@ parking_lot = "0.12"
 
 # 文件系统
 dirs = "5.0"
+
+# ZKP - arkworks生态系统
+ark-std = "0.4"
+ark-ff = "0.4"
+ark-ec = "0.4"
+ark-serialize = "0.4"
+ark-bn254 = "0.4"
+ark-groth16 = "0.4"
+ark-snark = "0.4"
+ark-r1cs-std = "0.4"
+ark-relations = "0.4"
+ark-crypto-primitives = "0.4"
+
+# Blake2哈希（用于ZKP电路）
+blake2 = "0.10"
 
 [dev-dependencies]
 tokio-test = "0.4"

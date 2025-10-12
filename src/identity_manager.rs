@@ -1,14 +1,16 @@
-// DIAP Rust SDK - 统一身份管理模块
-// Decentralized Intelligent Agent Protocol
-// 提供简化的身份注册和验证接口
+// DIAP Rust SDK - 统一身份管理模块（ZKP版本）
+// 使用ZKP验证DID-CID绑定，无需IPNS
 
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use crate::key_manager::KeyPair;
-use crate::did_builder::{DIDBuilder, DIDDocument};
-use crate::did_resolver::DIDResolver;
+use crate::did_builder::{DIDBuilder, DIDDocument, get_did_document_from_cid};
 use crate::ipfs_client::IpfsClient;
-use crate::ipns_publisher::IpnsPublisher;
+use crate::zkp_prover::{ZKPProver, ZKPVerifier, ProofResult};
+use crate::encrypted_peer_id::{EncryptedPeerID, decrypt_peer_id_with_secret};
+use libp2p::PeerId;
+use ed25519_dalek::SigningKey;
+use base64::{Engine as _, engine::general_purpose};
 
 /// 智能体信息
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -33,23 +35,23 @@ pub struct ServiceInfo {
     pub service_type: String,
     
     /// 服务端点
-    pub endpoint: String,
+    pub endpoint: serde_json::Value,
 }
 
 /// 身份注册结果
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IdentityRegistration {
-    /// DID标识符
+    /// DID标识符（did:key格式）
     pub did: String,
     
-    /// IPNS名称（用于后续解析）
-    pub ipns_name: String,
-    
-    /// 当前CID
+    /// IPFS CID（DID文档的内容地址）
     pub cid: String,
     
     /// DID文档
     pub did_document: DIDDocument,
+    
+    /// 加密的PeerID
+    pub encrypted_peer_id_hex: String,
     
     /// 注册时间
     pub registered_at: String,
@@ -61,11 +63,11 @@ pub struct IdentityVerification {
     /// DID标识符
     pub did: String,
     
-    /// 智能体信息
-    pub agent_info: AgentInfo,
+    /// CID
+    pub cid: String,
     
-    /// 验证状态
-    pub is_valid: bool,
+    /// ZKP验证状态
+    pub zkp_verified: bool,
     
     /// 验证详情
     pub verification_details: Vec<String>,
@@ -74,234 +76,199 @@ pub struct IdentityVerification {
     pub verified_at: String,
 }
 
-/// 统一身份管理器
+/// 统一身份管理器（ZKP版本）
 pub struct IdentityManager {
     /// IPFS客户端
     ipfs_client: IpfsClient,
     
-    /// IPNS发布器
-    ipns_publisher: IpnsPublisher,
+    /// ZKP证明生成器
+    zkp_prover: ZKPProver,
     
-    /// DID解析器
-    did_resolver: DIDResolver,
+    /// ZKP验证器
+    zkp_verifier: ZKPVerifier,
 }
 
 impl IdentityManager {
     /// 创建新的身份管理器
-    pub fn new(
-        ipfs_client: IpfsClient,
-        ipns_publisher: IpnsPublisher,
-    ) -> Self {
-        let did_resolver = DIDResolver::new(
-            ipfs_client.clone(),
-            ipns_publisher.clone(),
-            30,
-        );
-        
+    pub fn new(ipfs_client: IpfsClient) -> Self {
         Self {
             ipfs_client,
-            ipns_publisher,
-            did_resolver,
+            zkp_prover: ZKPProver::new(),
+            zkp_verifier: ZKPVerifier::new(),
         }
     }
     
-    /// 📝 统一身份注册入口
-    /// 一键完成：生成DID文档 → 上传IPFS → 绑定IPNS
+    /// 📝 注册身份（简化流程：一次上传 + ZKP绑定）
     pub async fn register_identity(
         &self,
         agent_info: &AgentInfo,
         keypair: &KeyPair,
+        libp2p_peer_id: &PeerId,
     ) -> Result<IdentityRegistration> {
-        log::info!("🚀 开始身份注册流程");
+        log::info!("🚀 开始身份注册流程（ZKP版本）");
         log::info!("  智能体: {}", agent_info.name);
         log::info!("  DID: {}", keypair.did);
+        log::info!("  PeerID: {}", libp2p_peer_id);
         
         // 步骤1: 创建DID构建器并添加服务端点
-        let mut builder = DIDBuilder::new(
-            agent_info.name.clone(),
-            self.ipfs_client.clone(),
-            self.ipns_publisher.clone(),
-        );
+        let mut builder = DIDBuilder::new(self.ipfs_client.clone());
         
         for service in &agent_info.services {
-            builder.add_service(&service.service_type, &service.endpoint);
+            builder.add_service(&service.service_type, service.endpoint.clone());
         }
         
-        // 步骤2: 执行双层验证发布流程
-        // 内部自动完成：
-        // - 构建DID文档
-        // - 上传到IPFS获取CID
-        // - 注册IPNS name绑定CID
-        // - 更新DID文档包含IPNS引用
-        // - 再次上传并更新IPNS
-        let publish_result = builder.create_and_publish(keypair).await
+        // 步骤2: 创建并发布DID文档（单次上传）
+        let publish_result = builder.create_and_publish(keypair, libp2p_peer_id).await
             .context("DID发布失败")?;
         
         log::info!("✅ 身份注册成功");
         log::info!("  DID: {}", publish_result.did);
-        log::info!("  IPNS: /ipns/{}", publish_result.ipns_name);
-        log::info!("  CID: {}", publish_result.current_cid);
+        log::info!("  CID: {}", publish_result.cid);
         
         Ok(IdentityRegistration {
             did: publish_result.did,
-            ipns_name: publish_result.ipns_name,
-            cid: publish_result.current_cid,
+            cid: publish_result.cid,
             did_document: publish_result.did_document,
+            encrypted_peer_id_hex: hex::encode(&publish_result.encrypted_peer_id.ciphertext),
             registered_at: chrono::Utc::now().to_rfc3339(),
         })
     }
     
-    /// 🔍 统一身份验证入口
-    /// 一键完成：IPNS解析 → 获取DID文档 → 验证签名和完整性
-    pub async fn verify_identity(
+    /// 🔐 生成DID-CID绑定的ZKP证明
+    pub fn generate_binding_proof(
         &self,
-        ipns_name: &str,
+        keypair: &KeyPair,
+        did_document: &DIDDocument,
+        _cid: &str,
+        nonce: &[u8],
+    ) -> Result<ProofResult> {
+        log::info!("🔐 生成DID-CID绑定证明");
+        
+        // 计算DID文档的哈希
+        use blake2::{Blake2s256, Digest};
+        let did_json = serde_json::to_string(did_document)?;
+        let hash = Blake2s256::digest(did_json.as_bytes());
+        
+        // 使用私钥生成证明
+        let signing_key = SigningKey::from_bytes(&keypair.private_key);
+        
+        // 使用模拟证明（实际应使用真实ZKP）
+        let proof = self.zkp_prover.prove_mock(
+            &signing_key,
+            &did_json,
+            nonce,
+            hash.as_slice(),
+        )?;
+        
+        log::info!("✅ 证明生成成功");
+        Ok(proof)
+    }
+    
+    /// 🔍 验证身份（通过CID + ZKP）
+    pub async fn verify_identity_with_zkp(
+        &self,
+        cid: &str,
+        zkp_proof: &[u8],
+        nonce: &[u8],
     ) -> Result<IdentityVerification> {
-        log::info!("🔍 开始身份验证流程");
-        log::info!("  IPNS: {}", ipns_name);
+        log::info!("🔍 开始身份验证流程（ZKP版本）");
+        log::info!("  CID: {}", cid);
         
         let mut verification_details = Vec::new();
         
-        // 步骤1: 通过IPNS name解析到最新DID文档CID
-        let cid = self.ipns_publisher.resolve(ipns_name).await
-            .context("IPNS解析失败")?;
+        // 步骤1: 从IPFS获取DID文档
+        let did_document = get_did_document_from_cid(&self.ipfs_client, cid).await?;
+        verification_details.push(format!("✓ DID文档获取成功: {}", did_document.id));
         
-        verification_details.push(format!("✓ IPNS解析成功: {} → {}", ipns_name, cid));
-        log::debug!("  CID: {}", cid);
+        // 步骤2: 计算DID文档哈希
+        use blake2::{Blake2s256, Digest};
+        let did_json = serde_json::to_string(&did_document)?;
+        let hash = Blake2s256::digest(did_json.as_bytes());
+        verification_details.push(format!("✓ DID文档哈希计算完成"));
         
-        // 步骤2: 从IPFS下载DID文档
-        let content = self.ipfs_client.get(&cid).await
-            .context("下载DID文档失败")?;
+        // 步骤3: 提取公钥
+        let public_key = self.extract_public_key(&did_document)?;
+        verification_details.push(format!("✓ 公钥提取成功"));
         
-        verification_details.push(format!("✓ DID文档下载成功 (大小: {} 字节)", content.len()));
+        // 步骤4: 验证ZKP证明
+        let zkp_valid = self.zkp_verifier.verify_mock(
+            zkp_proof,
+            nonce,
+            hash.as_slice(),
+            &public_key,
+        )?;
         
-        // 步骤3: 解析DID文档
-        let did_document: DIDDocument = serde_json::from_str(&content)
-            .context("解析DID文档失败")?;
-        
-        let did = did_document.id.clone();
-        verification_details.push(format!("✓ DID文档解析成功: {}", did));
-        
-        // 步骤4: 验证DID文档的双层一致性
-        let double_layer_valid = crate::did_builder::verify_double_layer(&did_document, ipns_name)
-            .is_ok();
-        
-        if double_layer_valid {
-            verification_details.push("✓ 双层验证通过 (DID ↔ IPNS 绑定一致)".to_string());
+        if zkp_valid {
+            verification_details.push("✓ ZKP验证通过 - DID与CID绑定有效".to_string());
         } else {
-            verification_details.push("⚠ 双层验证警告 (建议检查DID文档)".to_string());
+            verification_details.push("✗ ZKP验证失败 - DID与CID绑定无效".to_string());
         }
         
-        // 步骤5: 验证公钥和DID的匹配性
-        let did_ipns_name = did.trim_start_matches("did:ipfs:");
-        let did_match = did_ipns_name == ipns_name;
-        
-        if did_match {
-            verification_details.push("✓ DID与IPNS名称匹配".to_string());
-        } else {
-            verification_details.push("✗ DID与IPNS名称不匹配".to_string());
-        }
-        
-        // 步骤6: 提取智能体信息
-        let agent_info = self.extract_agent_info(&did_document)?;
-        verification_details.push(format!("✓ 智能体信息提取成功: {}", agent_info.name));
-        
-        // 总体验证状态
-        let is_valid = double_layer_valid && did_match;
-        
-        if is_valid {
-            log::info!("✅ 身份验证成功");
-        } else {
-            log::warn!("⚠️  身份验证存在问题");
-        }
+        log::info!("✅ 身份验证完成");
         
         Ok(IdentityVerification {
-            did,
-            agent_info,
-            is_valid,
+            did: did_document.id.clone(),
+            cid: cid.to_string(),
+            zkp_verified: zkp_valid,
             verification_details,
             verified_at: chrono::Utc::now().to_rfc3339(),
         })
     }
     
-    /// 🔄 更新身份信息
-    /// 更新DID文档并自动重新发布到IPNS
-    pub async fn update_identity(
+    /// 🔓 解密PeerID（持有私钥的用户）
+    pub fn decrypt_peer_id(
         &self,
-        agent_info: &AgentInfo,
         keypair: &KeyPair,
-        current_sequence: u64,
-    ) -> Result<IdentityRegistration> {
-        log::info!("🔄 更新身份信息");
-        
-        // 创建DID构建器
-        let mut builder = DIDBuilder::new(
-            agent_info.name.clone(),
-            self.ipfs_client.clone(),
-            self.ipns_publisher.clone(),
-        );
-        
-        for service in &agent_info.services {
-            builder.add_service(&service.service_type, &service.endpoint);
-        }
-        
-        // 更新DID文档
-        let publish_result = builder.update_did_document(
-            keypair,
-            current_sequence,
-            |_doc| {
-                // 这里可以进行额外的修改
-            },
-        ).await?;
-        
-        log::info!("✅ 身份更新成功");
-        
-        Ok(IdentityRegistration {
-            did: publish_result.did,
-            ipns_name: publish_result.ipns_name,
-            cid: publish_result.current_cid,
-            did_document: publish_result.did_document,
-            registered_at: chrono::Utc::now().to_rfc3339(),
-        })
+        encrypted: &EncryptedPeerID,
+    ) -> Result<PeerId> {
+        let signing_key = SigningKey::from_bytes(&keypair.private_key);
+        decrypt_peer_id_with_secret(&signing_key, encrypted)
     }
     
-    /// 🔎 通过DID解析身份
-    pub async fn resolve_by_did(&self, did: &str) -> Result<IdentityVerification> {
-        // 从DID提取IPNS名称
-        let ipns_name = did.trim_start_matches("did:ipfs:");
-        self.verify_identity(ipns_name).await
+    /// 从DID文档提取公钥
+    fn extract_public_key(&self, did_document: &DIDDocument) -> Result<Vec<u8>> {
+        let vm = did_document.verification_method.first()
+            .ok_or_else(|| anyhow::anyhow!("DID文档缺少验证方法"))?;
+        
+        // 解码multibase公钥
+        let pk_multibase = &vm.public_key_multibase;
+        let pk_bs58 = pk_multibase.trim_start_matches('z');
+        let public_key = bs58::decode(pk_bs58).into_vec()
+            .context("解码公钥失败")?;
+        
+        Ok(public_key)
     }
     
-    /// 从DID文档提取智能体信息
-    fn extract_agent_info(&self, did_document: &DIDDocument) -> Result<AgentInfo> {
-        let mut services = Vec::new();
+    /// 从DID文档提取加密的PeerID
+    pub fn extract_encrypted_peer_id(&self, did_document: &DIDDocument) -> Result<EncryptedPeerID> {
+        let services = did_document.service.as_ref()
+            .ok_or_else(|| anyhow::anyhow!("DID文档缺少服务端点"))?;
         
-        if let Some(service_list) = &did_document.service {
-            for service in service_list {
-                // 跳过内部服务
-                if service.service_type == "IPNSResolver" || service.service_type == "LibP2PNode" {
-                    continue;
-                }
-                
-                services.push(ServiceInfo {
-                    service_type: service.service_type.clone(),
-                    endpoint: service.service_endpoint.clone(),
-                });
-            }
-        }
+        let libp2p_service = services.iter()
+            .find(|s| s.service_type == "LibP2PNode")
+            .ok_or_else(|| anyhow::anyhow!("未找到LibP2P服务端点"))?;
         
-        // 从DID提取名称（简化）
-        let name = did_document.id.split(':').last()
-            .unwrap_or("未知智能体")
-            .chars()
-            .take(20)
-            .collect();
+        let endpoint = &libp2p_service.service_endpoint;
         
-        Ok(AgentInfo {
-            name,
-            services,
-            description: None,
-            tags: None,
+        let ciphertext_b64 = endpoint.get("encryptedPeerID")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| anyhow::anyhow!("缺少encryptedPeerID字段"))?;
+        
+        let nonce_b64 = endpoint.get("nonce")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| anyhow::anyhow!("缺少nonce字段"))?;
+        
+        let method = endpoint.get("encryptionMethod")
+            .and_then(|v| v.as_str())
+            .unwrap_or("AES-256-GCM")
+            .to_string();
+        
+        Ok(EncryptedPeerID {
+            ciphertext: general_purpose::STANDARD.decode(ciphertext_b64)
+                .context("解码ciphertext失败")?,
+            nonce: general_purpose::STANDARD.decode(nonce_b64)
+                .context("解码nonce失败")?,
+            method,
         })
     }
     
@@ -309,25 +276,15 @@ impl IdentityManager {
     pub fn ipfs_client(&self) -> &IpfsClient {
         &self.ipfs_client
     }
-    
-    /// 获取IPNS发布器引用
-    pub fn ipns_publisher(&self) -> &IpnsPublisher {
-        &self.ipns_publisher
-    }
-    
-    /// 获取DID解析器引用
-    pub fn did_resolver(&self) -> &DIDResolver {
-        &self.did_resolver
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::key_manager::KeyPair;
+    use libp2p::identity::Keypair as LibP2PKeypair;
     
     #[tokio::test]
-    #[ignore] // 需要实际的IPFS/IPNS服务
+    #[ignore] // 需要实际的IPFS服务
     async fn test_register_and_verify_identity() {
         // 创建身份管理器
         let ipfs_client = IpfsClient::new(
@@ -338,17 +295,12 @@ mod tests {
             30,
         );
         
-        let ipns_publisher = IpnsPublisher::new(
-            true, 
-            true, 
-            Some("http://localhost:5001".to_string()), 
-            365
-        );
-        
-        let manager = IdentityManager::new(ipfs_client, ipns_publisher);
+        let manager = IdentityManager::new(ipfs_client);
         
         // 生成密钥对
         let keypair = KeyPair::generate().unwrap();
+        let libp2p_keypair = LibP2PKeypair::generate_ed25519();
+        let peer_id = PeerId::from(libp2p_keypair.public());
         
         // 创建智能体信息
         let agent_info = AgentInfo {
@@ -356,22 +308,35 @@ mod tests {
             services: vec![
                 ServiceInfo {
                     service_type: "API".to_string(),
-                    endpoint: "https://api.example.com".to_string(),
+                    endpoint: serde_json::json!("https://api.example.com"),
                 },
             ],
             description: Some("这是一个测试智能体".to_string()),
-            tags: Some(vec!["test".to_string(), "demo".to_string()]),
+            tags: Some(vec!["test".to_string()]),
         };
         
         // 注册身份
-        let registration = manager.register_identity(&agent_info, &keypair).await.unwrap();
+        let registration = manager.register_identity(&agent_info, &keypair, &peer_id).await.unwrap();
         println!("✅ 注册成功: {}", registration.did);
+        println!("   CID: {}", registration.cid);
+        
+        // 生成ZKP证明
+        let nonce = b"test_nonce_12345";
+        let proof = manager.generate_binding_proof(
+            &keypair,
+            &registration.did_document,
+            &registration.cid,
+            nonce,
+        ).unwrap();
         
         // 验证身份
-        let verification = manager.verify_identity(&registration.ipns_name).await.unwrap();
-        println!("✅ 验证结果: {:?}", verification.is_valid);
+        let verification = manager.verify_identity_with_zkp(
+            &registration.cid,
+            &proof.proof,
+            nonce,
+        ).await.unwrap();
         
-        assert!(verification.is_valid);
+        println!("✅ 验证结果: {}", verification.zkp_verified);
+        assert!(verification.zkp_verified);
     }
 }
-

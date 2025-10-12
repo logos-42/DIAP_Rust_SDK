@@ -1,17 +1,13 @@
-// DIAP Rust SDK - P2P通信模块
-// Decentralized Intelligent Agent Protocol
-// 实现完整的libp2p Swarm和DIAP协议通信
+// DIAP Rust SDK - P2P通信模块（简化版，可编译）
+// TODO: 完整的Swarm实现将在v0.3.0完成
 
 use anyhow::{Context, Result};
 use libp2p::{
-    identity::Keypair,
     Multiaddr, PeerId,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::str::FromStr;
 use crate::libp2p_identity::LibP2PIdentity;
-use crate::did_resolver::DIDResolver;
 
 /// DIAP协议消息
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -34,7 +30,7 @@ pub struct DIAPMessage {
     /// nonce（防重放）
     pub nonce: String,
     
-    /// 签名（用libp2p私钥）
+    /// 签名
     pub signature: String,
 }
 
@@ -57,142 +53,88 @@ pub struct DIAPResponse {
     pub signature: String,
 }
 
-// DIAP协议编解码器（待实现）
-// TODO: 在后续版本实现完整的libp2p协议
-
-/// 简化的DIAP网络行为（基础版本）
-pub struct DIAPBehaviour {
-    // 暂时为空，后续版本实现完整的NetworkBehaviour
-}
-
-impl DIAPBehaviour {
-    /// 创建新的DIAP行为
-    pub fn new(_keypair: &Keypair) -> Result<Self> {
-        Ok(Self {})
-    }
-}
-
-/// P2P通信器（简化版本）
+/// P2P通信器（简化版，待完善）
 pub struct P2PCommunicator {
-    /// 自己的身份
-    identity: LibP2PIdentity,
+    /// 自己的PeerID
+    peer_id: PeerId,
     
-    /// DID解析器
-    resolver: DIDResolver,
+    /// 监听地址
+    listen_addrs: Vec<Multiaddr>,
     
     /// 已连接的节点
-    connected_peers: HashMap<String, PeerId>,  // DID -> PeerID
+    connected_peers: HashMap<PeerId, String>,  // PeerID -> DID
 }
 
 impl P2PCommunicator {
-    /// 创建新的P2P通信器（简化版本）
-    pub async fn new(
-        identity: LibP2PIdentity,
-        resolver: DIDResolver,
-    ) -> Result<Self> {
+    /// 创建新的P2P通信器
+    pub async fn new(identity: LibP2PIdentity) -> Result<Self> {
+        log::info!("创建P2P通信器（简化实现）");
+        log::info!("  PeerID: {}", identity.peer_id());
+        
         Ok(Self {
-            identity,
-            resolver,
+            peer_id: *identity.peer_id(),
+            listen_addrs: Vec::new(),
             connected_peers: HashMap::new(),
         })
     }
     
-    /// 启动监听（简化版本）
+    /// 启动监听
     pub fn listen(&mut self, addr: &str) -> Result<()> {
-        log::info!("准备监听: {} (简化实现)", addr);
-        // TODO: 实现完整的Swarm监听
-        Ok(())
-    }
-    
-    /// 连接到其他智能体
-    pub async fn connect_to_agent(&mut self, target_did: &str) -> Result<PeerId> {
-        log::info!("连接到智能体: {}", target_did);
+        let multiaddr: Multiaddr = addr.parse()
+            .context("解析监听地址失败")?;
         
-        // 步骤1: 解析目标DID
-        let resolve_result = self.resolver.resolve(target_did).await?;
-        log::info!("✓ DID解析成功");
-        
-        // 步骤2: 提取libp2p信息
-        let node_info = DIDResolver::extract_libp2p_info(&resolve_result.did_document)?;
-        log::info!("✓ 提取libp2p信息成功");
-        log::info!("  PeerID: {}", node_info.peer_id);
-        log::info!("  多地址数量: {}", node_info.multiaddrs.len());
-        
-        // 步骤3: 验证libp2p绑定
-        DIDResolver::verify_libp2p_binding(&resolve_result.did_document)?;
-        log::info!("✓ libp2p绑定验证通过");
-        
-        // 步骤4: 解析PeerID
-        let peer_id = PeerId::from_str(&node_info.peer_id)
-            .context("解析PeerID失败")?;
-        
-        // 步骤5: 尝试连接（简化版本）
-        log::info!("准备连接到PeerID: {}", peer_id);
-        for addr_str in &node_info.multiaddrs {
-            log::info!("  可用地址: {}", addr_str);
-        }
-        
-        // TODO: 实现真实的libp2p连接
-        log::info!("✓ 连接信息已准备（简化实现）");
-        
-        // 记录连接
-        self.connected_peers.insert(target_did.to_string(), peer_id);
-        
-        Ok(peer_id)
-    }
-    
-    /// 发送消息到智能体
-    pub async fn send_message(
-        &mut self,
-        target_did: &str,
-        content: serde_json::Value,
-    ) -> Result<()> {
-        // 获取目标PeerID
-        let _peer_id = if let Some(peer_id) = self.connected_peers.get(target_did) {
-            *peer_id
-        } else {
-            // 如果未连接，先连接
-            self.connect_to_agent(target_did).await?
-        };
-        
-        // 构造DIAP消息
-        let message = DIAPMessage {
-            msg_type: "message".to_string(),
-            from: format!("did:ipfs:{}", self.identity.peer_id().to_base58()), // 注意：这里需要用IPNS DID
-            to: target_did.to_string(),
-            content,
-            timestamp: chrono::Utc::now().to_rfc3339(),
-            nonce: uuid::Uuid::new_v4().to_string(),
-            signature: "".to_string(), // TODO: 实现签名
-        };
-        
-        // 发送消息（简化版本）
-        log::info!("准备发送消息: {:?}", message.msg_type);
-        // TODO: 实现真实的消息发送
+        self.listen_addrs.push(multiaddr.clone());
+        log::info!("✓ 添加监听地址: {}", addr);
+        log::warn!("  注意：当前为简化实现，实际监听将在v0.3.0实现");
         
         Ok(())
     }
     
-    /// 运行事件循环（简化版本）
+    /// 连接到节点
+    pub fn dial(&mut self, peer_id: PeerId, addr: Multiaddr) -> Result<()> {
+        log::info!("✓ 准备连接: {} at {}", peer_id, addr);
+        log::warn!("  注意：当前为简化实现，实际连接将在v0.3.0实现");
+        
+        // 记录为已连接（简化）
+        self.connected_peers.insert(peer_id, format!("did:key:{}", peer_id));
+        
+        Ok(())
+    }
+    
+    /// 发送消息
+    pub fn send_message(&mut self, peer_id: PeerId, message: DIAPMessage) -> Result<String> {
+        log::info!("✓ 准备发送消息到: {}", peer_id);
+        log::debug!("  消息类型: {}", message.msg_type);
+        log::warn!("  注意：当前为简化实现，实际发送将在v0.3.0实现");
+        
+        Ok(format!("req_{}", uuid::Uuid::new_v4()))
+    }
+    
+    /// 运行事件循环（简化）
     pub async fn run(&mut self) -> Result<()> {
         log::info!("P2P通信器运行中（简化实现）");
+        log::warn!("完整的Swarm事件循环将在v0.3.0实现");
         
-        // TODO: 实现完整的事件循环
-        // 当前版本：保持运行状态
+        // 保持运行状态
         loop {
-            tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+            tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+            log::debug!("P2P心跳...");
         }
     }
     
-    /// 获取当前监听的多地址（简化版本）
+    /// 获取当前监听的多地址
     pub fn listeners(&self) -> Vec<Multiaddr> {
-        // TODO: 返回实际的监听地址
-        vec![]
+        self.listen_addrs.clone()
     }
     
     /// 获取连接的节点列表
-    pub fn connected_peers(&self) -> &HashMap<String, PeerId> {
+    pub fn connected_peers(&self) -> &HashMap<PeerId, String> {
         &self.connected_peers
+    }
+    
+    /// 获取本地PeerID
+    pub fn local_peer_id(&self) -> &PeerId {
+        &self.peer_id
     }
 }
 
@@ -203,11 +145,16 @@ mod tests {
     #[tokio::test]
     async fn test_create_communicator() {
         let identity = LibP2PIdentity::generate().unwrap();
-        let ipfs_client = crate::ipfs_client::IpfsClient::new(None, None, None, None, 30);
-        let ipns_publisher = crate::ipns_publisher::IpnsPublisher::new(true, false, None, 365);
-        let resolver = DIDResolver::new(ipfs_client, ipns_publisher, 30);
-        
-        let communicator = P2PCommunicator::new(identity, resolver).await;
+        let communicator = P2PCommunicator::new(identity).await;
         assert!(communicator.is_ok());
+    }
+    
+    #[tokio::test]
+    async fn test_listen() {
+        let identity = LibP2PIdentity::generate().unwrap();
+        let mut communicator = P2PCommunicator::new(identity).await.unwrap();
+        
+        let result = communicator.listen("/ip4/127.0.0.1/tcp/4001");
+        assert!(result.is_ok());
     }
 }
