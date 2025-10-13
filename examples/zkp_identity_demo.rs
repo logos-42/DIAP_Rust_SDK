@@ -154,9 +154,14 @@ async fn main() -> Result<()> {
     println!("🔓 第7步：解密PeerID（需要私钥）");
     
     let encrypted_peer_id = identity_manager.extract_encrypted_peer_id(&registration.did_document)?;
-    let decrypted_peer_id = identity_manager.decrypt_peer_id(&keypair, &encrypted_peer_id)?;
     
-    println!("✓ PeerID解密成功");
+    // 使用改进的解密函数（decrypt_peer_id_with_secret）
+    use diap_rs_sdk::encrypted_peer_id::decrypt_peer_id_with_secret;
+    use ed25519_dalek::SigningKey;
+    let signing_key = SigningKey::from_bytes(&keypair.private_key);
+    let decrypted_peer_id = decrypt_peer_id_with_secret(&signing_key, &encrypted_peer_id)?;
+    
+    println!("✓ PeerID解密成功（AES-256-GCM）");
     println!("  原始PeerID: {}", peer_id);
     println!("  解密PeerID: {}", decrypted_peer_id);
     println!("  匹配: {}", peer_id == decrypted_peer_id);

@@ -1,84 +1,145 @@
-// DIAP Rust SDK - 签名PeerID模块
-// 使用DID私钥签名PeerID，其他节点可通过公钥验证归属但不直接暴露PeerID
+// DIAP Rust SDK - 加密PeerID模块（改进版）
+// 使用AES-256-GCM加密PeerID，持有私钥者可以解密恢复
 
 use anyhow::{Context, Result};
 use ed25519_dalek::{SigningKey, VerifyingKey, Signature, Signer, Verifier};
 use libp2p::PeerId;
 use serde::{Deserialize, Serialize};
 use sha2::{Sha256, Digest};
+use aes_gcm::{
+    aead::{Aead, KeyInit},
+    Aes256Gcm, Nonce
+};
+use rand::RngCore;
 
-/// 签名后的PeerID（隐私保护版）
+/// 加密的PeerID（改进版：可解密恢复）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EncryptedPeerID {
-    /// PeerID的哈希（而非明文）
-    pub peer_id_hash: Vec<u8>,
+    /// 加密后的PeerID字节
+    pub ciphertext: Vec<u8>,
     
-    /// 对PeerID的签名
+    /// AES-GCM nonce (12字节)
+    pub nonce: Vec<u8>,
+    
+    /// 对加密数据的签名（用于验证完整性）
     pub signature: Vec<u8>,
-    
-    /// 盲化因子（可选，用于进一步隐私保护）
-    pub blinding_factor: Option<Vec<u8>>,
     
     /// 方法标识
     pub method: String,
 }
 
-/// 使用Ed25519私钥签名PeerID（隐私保护版本）
-/// 只暴露PeerID的哈希和签名，不暴露明文
+/// 使用Ed25519私钥加密PeerID（改进版：可解密）
+/// 使用从私钥派生的AES-256密钥加密PeerID
 pub fn encrypt_peer_id(
     did_secret_key: &SigningKey,
     peer_id: &PeerId,
 ) -> Result<EncryptedPeerID> {
-    // 1. 计算PeerID的SHA256哈希
+    // 1. 从Ed25519私钥派生AES-256密钥
+    let aes_key = derive_aes_key_from_ed25519(did_secret_key);
+    
+    // 2. 生成随机nonce (AES-GCM需要12字节)
+    let mut nonce_bytes = [0u8; 12];
+    rand::thread_rng().fill_bytes(&mut nonce_bytes);
+    let nonce = Nonce::from_slice(&nonce_bytes);
+    
+    // 3. 创建AES-GCM加密器
+    let cipher = Aes256Gcm::new(&aes_key.into());
+    
+    // 4. 加密PeerID
     let peer_id_bytes = peer_id.to_bytes();
-    let mut hasher = Sha256::new();
-    hasher.update(&peer_id_bytes);
-    hasher.update(b"DIAP_PEER_ID_V2");
-    let peer_id_hash = hasher.finalize().to_vec();
+    let ciphertext = cipher.encrypt(nonce, peer_id_bytes.as_ref())
+        .map_err(|e| anyhow::anyhow!("AES-GCM加密失败: {:?}", e))?;
     
-    // 2. 对PeerID进行签名
-    let signature = did_secret_key.sign(&peer_id_bytes);
+    // 5. 对加密数据签名（用于验证完整性）
+    let mut sig_data = Vec::new();
+    sig_data.extend_from_slice(&ciphertext);
+    sig_data.extend_from_slice(&nonce_bytes);
+    let signature = did_secret_key.sign(&sig_data);
     
-    log::info!("✓ PeerID已签名（隐私保护）");
+    log::info!("✓ PeerID已加密（AES-256-GCM）");
     log::debug!("  原始PeerID: {}", peer_id);
-    log::debug!("  哈希长度: {} 字节", peer_id_hash.len());
+    log::debug!("  密文长度: {} 字节", ciphertext.len());
+    log::debug!("  Nonce长度: {} 字节", nonce_bytes.len());
     log::debug!("  签名长度: {} 字节", signature.to_bytes().len());
     
     Ok(EncryptedPeerID {
-        peer_id_hash,
+        ciphertext,
+        nonce: nonce_bytes.to_vec(),
         signature: signature.to_bytes().to_vec(),
-        blinding_factor: None,
-        method: "Ed25519-Signature-V2".to_string(),
+        method: "AES-256-GCM-Ed25519-V3".to_string(),
     })
 }
 
-/// 已废弃：使用verify_peer_id_signature代替
-#[deprecated(note = "使用verify_peer_id_signature验证PeerID归属")]
-pub fn decrypt_peer_id(
-    _did_public_key: &VerifyingKey,
-    _encrypted: &EncryptedPeerID,
+/// 从Ed25519私钥派生AES-256密钥
+fn derive_aes_key_from_ed25519(signing_key: &SigningKey) -> [u8; 32] {
+    // 使用SHA-256派生密钥
+    let mut hasher = Sha256::new();
+    hasher.update(signing_key.to_bytes());
+    hasher.update(b"DIAP_AES_KEY_V3");
+    let hash = hasher.finalize();
+    
+    let mut key = [0u8; 32];
+    key.copy_from_slice(&hash);
+    key
+}
+
+/// 使用私钥解密PeerID（改进版：可以恢复）
+/// 持有DID私钥的用户可以解密恢复自己的PeerID
+pub fn decrypt_peer_id_with_secret(
+    did_secret_key: &SigningKey,
+    encrypted: &EncryptedPeerID,
 ) -> Result<PeerId> {
-    Err(anyhow::anyhow!("已废弃，使用verify_peer_id_signature代替"))
+    log::info!("🔓 解密PeerID（持有私钥）");
+    
+    // 1. 验证签名（确保数据未被篡改）
+    let mut sig_data = Vec::new();
+    sig_data.extend_from_slice(&encrypted.ciphertext);
+    sig_data.extend_from_slice(&encrypted.nonce);
+    
+    let signature = Signature::from_bytes(
+        encrypted.signature.as_slice().try_into()
+            .context("签名格式错误")?
+    );
+    
+    let verifying_key = did_secret_key.verifying_key();
+    verifying_key.verify(&sig_data, &signature)
+        .context("签名验证失败：数据可能被篡改")?;
+    
+    log::debug!("✓ 签名验证通过");
+    
+    // 2. 从私钥派生AES密钥
+    let aes_key = derive_aes_key_from_ed25519(did_secret_key);
+    
+    // 3. 解密
+    let cipher = Aes256Gcm::new(&aes_key.into());
+    let nonce = Nonce::from_slice(&encrypted.nonce);
+    
+    let plaintext = cipher.decrypt(nonce, encrypted.ciphertext.as_ref())
+        .map_err(|e| anyhow::anyhow!("AES-GCM解密失败: {:?}", e))?;
+    
+    // 4. 从字节恢复PeerID
+    let peer_id = PeerId::from_bytes(&plaintext)
+        .context("无法从解密数据恢复PeerID")?;
+    
+    log::info!("✓ PeerID解密成功");
+    log::debug!("  解密的PeerID: {}", peer_id);
+    
+    Ok(peer_id)
 }
 
 /// 验证PeerID签名（其他节点验证归属）
-/// 返回: 签名是否有效
+/// 不需要解密，只验证持有者确实拥有对应的私钥
 pub fn verify_peer_id_signature(
     did_public_key: &VerifyingKey,
     encrypted: &EncryptedPeerID,
-    claimed_peer_id: &PeerId,
+    _claimed_peer_id: &PeerId,
 ) -> Result<bool> {
-    // 1. 验证PeerID哈希是否匹配
-    let peer_id_bytes = claimed_peer_id.to_bytes();
-    let mut hasher = Sha256::new();
-    hasher.update(&peer_id_bytes);
-    hasher.update(b"DIAP_PEER_ID_V2");
-    let computed_hash = hasher.finalize();
+    log::info!("验证PeerID签名（公开验证）");
     
-    if computed_hash.as_slice() != encrypted.peer_id_hash.as_slice() {
-        log::warn!("PeerID哈希不匹配");
-        return Ok(false);
-    }
+    // 1. 构造签名数据
+    let mut sig_data = Vec::new();
+    sig_data.extend_from_slice(&encrypted.ciphertext);
+    sig_data.extend_from_slice(&encrypted.nonce);
     
     // 2. 验证签名
     let signature = Signature::from_bytes(
@@ -86,9 +147,11 @@ pub fn verify_peer_id_signature(
             .context("签名格式错误")?
     );
     
-    match did_public_key.verify(&peer_id_bytes, &signature) {
+    match did_public_key.verify(&sig_data, &signature) {
         Ok(_) => {
             log::info!("✓ PeerID签名验证通过");
+            // 注意：这只验证了签名有效性，没有验证PeerID内容
+            // 如果需要验证具体的PeerID，调用者需要解密后比较
             Ok(true)
         }
         Err(_) => {
@@ -98,21 +161,13 @@ pub fn verify_peer_id_signature(
     }
 }
 
-/// 使用私钥解密PeerID（持有者重建明文）
-/// 注意：这个函数用于持有私钥的用户恢复自己的PeerID
-pub fn decrypt_peer_id_with_secret(
-    _did_secret_key: &SigningKey,
-    encrypted: &EncryptedPeerID,
+/// 已废弃：使用decrypt_peer_id_with_secret代替
+#[deprecated(note = "使用decrypt_peer_id_with_secret替代")]
+pub fn decrypt_peer_id(
+    _did_public_key: &VerifyingKey,
+    _encrypted: &EncryptedPeerID,
 ) -> Result<PeerId> {
-    // 在新的签名方案中，无法从哈希反推原始PeerID
-    // 持有者应该本地存储PeerID，不依赖DID文档恢复
-    log::warn!("新方案中无法从签名恢复PeerID，请本地存储");
-    
-    // 返回哈希作为提示（实际应用中应该从本地存储读取）
-    Err(anyhow::anyhow!(
-        "签名方案不支持恢复PeerID，哈希: {}",
-        hex::encode(&encrypted.peer_id_hash)
-    ))
+    Err(anyhow::anyhow!("已废弃，使用decrypt_peer_id_with_secret代替"))
 }
 
 /// 验证PeerID所有权（通过ZKP证明）
@@ -134,7 +189,7 @@ mod tests {
     use libp2p::identity::Keypair;
     
     #[test]
-    fn test_sign_and_verify_peer_id() {
+    fn test_encrypt_and_decrypt_peer_id() {
         // 生成Ed25519密钥对
         use rand::RngCore;
         let mut secret_bytes = [0u8; 32];
@@ -146,66 +201,72 @@ mod tests {
         let libp2p_keypair = Keypair::generate_ed25519();
         let peer_id = PeerId::from(libp2p_keypair.public());
         
-        // 签名
-        let signed = encrypt_peer_id(&signing_key, &peer_id).unwrap();
+        // 加密
+        let encrypted = encrypt_peer_id(&signing_key, &peer_id).unwrap();
         
-        // 验证
-        let is_valid = verify_peer_id_signature(&verifying_key, &signed, &peer_id).unwrap();
-        
+        // 验证签名
+        let is_valid = verify_peer_id_signature(&verifying_key, &encrypted, &peer_id).unwrap();
         assert!(is_valid, "PeerID签名验证应该通过");
-        println!("✓ 签名验证测试通过");
+        
+        // 解密
+        let decrypted_peer_id = decrypt_peer_id_with_secret(&signing_key, &encrypted).unwrap();
+        assert_eq!(peer_id, decrypted_peer_id, "解密后的PeerID应该与原始PeerID相同");
+        
+        println!("✓ 加密解密测试通过（改进版）");
     }
     
     #[test]
-    fn test_signature_with_wrong_peer_id() {
+    fn test_decrypt_with_wrong_key() {
         use rand::RngCore;
-        let mut secret_bytes = [0u8; 32];
-        rand::thread_rng().fill_bytes(&mut secret_bytes);
-        let signing_key = SigningKey::from_bytes(&secret_bytes);
-        let verifying_key = signing_key.verifying_key();
+        let mut secret_bytes1 = [0u8; 32];
+        let mut secret_bytes2 = [0u8; 32];
+        rand::thread_rng().fill_bytes(&mut secret_bytes1);
+        rand::thread_rng().fill_bytes(&mut secret_bytes2);
         
-        // 原始PeerID
-        let libp2p_keypair1 = Keypair::generate_ed25519();
-        let peer_id1 = PeerId::from(libp2p_keypair1.public());
+        let signing_key1 = SigningKey::from_bytes(&secret_bytes1);
+        let signing_key2 = SigningKey::from_bytes(&secret_bytes2);
         
-        // 签名PeerID1
-        let signed = encrypt_peer_id(&signing_key, &peer_id1).unwrap();
-        
-        // 尝试用PeerID2验证
-        let libp2p_keypair2 = Keypair::generate_ed25519();
-        let peer_id2 = PeerId::from(libp2p_keypair2.public());
-        
-        let is_valid = verify_peer_id_signature(&verifying_key, &signed, &peer_id2).unwrap();
-        
-        assert!(!is_valid, "使用错误的PeerID验证应该失败");
-        println!("✓ 错误PeerID验证测试通过");
-    }
-    
-    #[test]
-    fn test_signature_determinism() {
-        use rand::RngCore;
-        let mut secret_bytes = [0u8; 32];
-        rand::thread_rng().fill_bytes(&mut secret_bytes);
-        let signing_key = SigningKey::from_bytes(&secret_bytes);
-        let verifying_key = signing_key.verifying_key();
+        // 生成PeerID
         let libp2p_keypair = Keypair::generate_ed25519();
         let peer_id = PeerId::from(libp2p_keypair.public());
         
-        // 多次签名应产生相同的结果（Ed25519是确定性的）
-        let signed1 = encrypt_peer_id(&signing_key, &peer_id).unwrap();
-        let signed2 = encrypt_peer_id(&signing_key, &peer_id).unwrap();
+        // 用密钥1加密
+        let encrypted = encrypt_peer_id(&signing_key1, &peer_id).unwrap();
         
-        assert_eq!(signed1.signature, signed2.signature);
-        assert_eq!(signed1.peer_id_hash, signed2.peer_id_hash);
+        // 用密钥2解密应该失败
+        let result = decrypt_peer_id_with_secret(&signing_key2, &encrypted);
+        assert!(result.is_err(), "使用错误的密钥解密应该失败");
         
-        // 都能正确验证
-        let valid1 = verify_peer_id_signature(&verifying_key, &signed1, &peer_id).unwrap();
-        let valid2 = verify_peer_id_signature(&verifying_key, &signed2, &peer_id).unwrap();
+        println!("✓ 错误密钥解密测试通过");
+    }
+    
+    #[test]
+    fn test_encryption_randomness() {
+        use rand::RngCore;
+        let mut secret_bytes = [0u8; 32];
+        rand::thread_rng().fill_bytes(&mut secret_bytes);
+        let signing_key = SigningKey::from_bytes(&secret_bytes);
         
-        assert!(valid1);
-        assert!(valid2);
+        let libp2p_keypair = Keypair::generate_ed25519();
+        let peer_id = PeerId::from(libp2p_keypair.public());
         
-        println!("✓ 签名确定性测试通过");
+        // 多次加密应产生不同的密文（因为nonce是随机的）
+        let encrypted1 = encrypt_peer_id(&signing_key, &peer_id).unwrap();
+        let encrypted2 = encrypt_peer_id(&signing_key, &peer_id).unwrap();
+        
+        // nonce应该不同
+        assert_ne!(encrypted1.nonce, encrypted2.nonce);
+        // 密文应该不同
+        assert_ne!(encrypted1.ciphertext, encrypted2.ciphertext);
+        
+        // 但都能正确解密
+        let decrypted1 = decrypt_peer_id_with_secret(&signing_key, &encrypted1).unwrap();
+        let decrypted2 = decrypt_peer_id_with_secret(&signing_key, &encrypted2).unwrap();
+        
+        assert_eq!(peer_id, decrypted1);
+        assert_eq!(peer_id, decrypted2);
+        
+        println!("✓ 加密随机性测试通过");
     }
 }
 

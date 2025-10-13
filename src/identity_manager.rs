@@ -279,21 +279,42 @@ impl IdentityManager {
         decrypt_peer_id_with_secret(&signing_key, encrypted)
     }
     
-    /// 从DID文档提取公钥
+    /// 从DID文档提取公钥（改进版：正确解析multicodec前缀）
     fn extract_public_key(&self, did_document: &DIDDocument) -> Result<Vec<u8>> {
         let vm = did_document.verification_method.first()
             .ok_or_else(|| anyhow::anyhow!("DID文档缺少验证方法"))?;
         
-        // 解码multibase公钥
+        // 解码multibase公钥（'z'表示base58btc编码）
         let pk_multibase = &vm.public_key_multibase;
-        let pk_bs58 = pk_multibase.trim_start_matches('z');
-        let public_key = bs58::decode(pk_bs58).into_vec()
-            .context("解码公钥失败")?;
+        if !pk_multibase.starts_with('z') {
+            anyhow::bail!("公钥必须使用base58btc编码（'z'前缀）");
+        }
         
-        Ok(public_key)
+        let pk_bs58 = &pk_multibase[1..]; // 移除'z'前缀
+        let encoded_key = bs58::decode(pk_bs58).into_vec()
+            .context("解码base58公钥失败")?;
+        
+        // 解析multicodec前缀
+        // Ed25519公钥: 0xed01 (2字节)
+        if encoded_key.len() < 2 {
+            anyhow::bail!("公钥数据太短");
+        }
+        
+        // 检查multicodec前缀
+        if encoded_key[0] == 0xed && encoded_key[1] == 0x01 {
+            // Ed25519公钥，提取实际的32字节公钥
+            if encoded_key.len() != 34 {  // 2字节前缀 + 32字节公钥
+                anyhow::bail!("Ed25519公钥长度错误：期望34字节，实际{}字节", encoded_key.len());
+            }
+            Ok(encoded_key[2..].to_vec())
+        } else {
+            // 未知的multicodec，返回全部数据
+            log::warn!("未知的multicodec前缀: 0x{:02x}{:02x}", encoded_key[0], encoded_key[1]);
+            Ok(encoded_key)
+        }
     }
     
-    /// 从DID文档提取签名的PeerID
+    /// 从DID文档提取加密的PeerID（改进版）
     pub fn extract_encrypted_peer_id(&self, did_document: &DIDDocument) -> Result<EncryptedPeerID> {
         let services = did_document.service.as_ref()
             .ok_or_else(|| anyhow::anyhow!("DID文档缺少服务端点"))?;
@@ -304,9 +325,13 @@ impl IdentityManager {
         
         let endpoint = &libp2p_service.service_endpoint;
         
-        let peer_id_hash_b64 = endpoint.get("peerIdHash")
+        let ciphertext_b64 = endpoint.get("ciphertext")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("缺少peerIdHash字段"))?;
+            .ok_or_else(|| anyhow::anyhow!("缺少ciphertext字段"))?;
+        
+        let nonce_b64 = endpoint.get("nonce")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| anyhow::anyhow!("缺少nonce字段"))?;
         
         let signature_b64 = endpoint.get("signature")
             .and_then(|v| v.as_str())
@@ -314,15 +339,16 @@ impl IdentityManager {
         
         let method = endpoint.get("method")
             .and_then(|v| v.as_str())
-            .unwrap_or("Ed25519-Signature-V2")
+            .unwrap_or("AES-256-GCM-Ed25519-V3")
             .to_string();
         
         Ok(EncryptedPeerID {
-            peer_id_hash: general_purpose::STANDARD.decode(peer_id_hash_b64)
-                .context("解码peerIdHash失败")?,
+            ciphertext: general_purpose::STANDARD.decode(ciphertext_b64)
+                .context("解码ciphertext失败")?,
+            nonce: general_purpose::STANDARD.decode(nonce_b64)
+                .context("解码nonce失败")?,
             signature: general_purpose::STANDARD.decode(signature_b64)
                 .context("解码signature失败")?,
-            blinding_factor: None,
             method,
         })
     }
@@ -339,7 +365,7 @@ mod tests {
     use libp2p::identity::Keypair as LibP2PKeypair;
     
     #[tokio::test]
-    #[ignore] // 需要实际的IPFS服务
+    #[ignore] // 需要实际的IPFS服务和ZKP keys
     async fn test_register_and_verify_identity() {
         // 创建身份管理器
         let ipfs_client = IpfsClient::new(
@@ -350,7 +376,13 @@ mod tests {
             30,
         );
         
-        let manager = IdentityManager::new(ipfs_client);
+        // 注意：这个测试需要先生成ZKP keys
+        // 运行: cargo run --example zkp_setup_keys
+        let manager = IdentityManager::new_with_keys(
+            ipfs_client,
+            "zkp_proving.key",
+            "zkp_verifying.key",
+        ).expect("无法加载ZKP keys，请先运行 zkp_setup_keys");
         
         // 生成密钥对
         let keypair = KeyPair::generate().unwrap();

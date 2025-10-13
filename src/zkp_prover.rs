@@ -160,7 +160,7 @@ impl ZKPVerifier {
         Ok(())
     }
     
-    /// 验证DID-CID绑定证明
+    /// 验证DID-CID绑定证明（改进版：与电路公共输入一致）
     pub fn verify(
         &self,
         proof_bytes: &[u8],
@@ -168,7 +168,7 @@ impl ZKPVerifier {
         cid_hash: &[u8],
         expected_public_key: &[u8],
     ) -> Result<bool> {
-        log::info!("🔍 开始验证ZKP证明");
+        log::info!("🔍 开始验证ZKP证明（改进版）");
         
         let pvk = self.verifying_key.as_ref()
             .ok_or_else(|| anyhow::anyhow!("Verifying key未设置"))?;
@@ -177,40 +177,34 @@ impl ZKPVerifier {
         let proof = Proof::<Bn254>::deserialize_uncompressed(proof_bytes)
             .context("反序列化证明失败")?;
         
-        // 2. 准备公共输入（转换为Fr元素）
-        use ark_ff::Field;
-        use ark_bn254::Fr;
+        // 2. 准备公共输入（与电路构造保持一致）
         
         let mut public_inputs = Vec::new();
         
-        // 将nonce转换为Fr元素
-        for chunk in nonce.chunks(31) {  // Fr可以安全容纳31字节
-            let mut bytes = [0u8; 32];
-            bytes[..chunk.len()].copy_from_slice(chunk);
-            if let Some(fr) = Fr::from_random_bytes(&bytes) {
-                public_inputs.push(fr);
-            }
-        }
+        // 公共输入顺序（必须与电路中的new_input调用顺序一致）：
+        // 1. expected_did_hash_fields (Vec<Fr>)
+        // 2. public_key_hash (Fr)
+        // 3. nonce_hash (Fr)
         
-        // 将CID哈希转换为Fr元素
-        for chunk in cid_hash.chunks(31) {
-            let mut bytes = [0u8; 32];
-            bytes[..chunk.len()].copy_from_slice(chunk);
-            if let Some(fr) = Fr::from_random_bytes(&bytes) {
-                public_inputs.push(fr);
-            }
-        }
+        // 1) 将CID哈希转换为Fr元素数组
+        let cid_hash_fields = Self::bytes_to_field_elements(cid_hash);
+        public_inputs.extend(cid_hash_fields);
         
-        // 将公钥转换为Fr元素
-        for chunk in expected_public_key.chunks(31) {
-            let mut bytes = [0u8; 32];
-            bytes[..chunk.len()].copy_from_slice(chunk);
-            if let Some(fr) = Fr::from_random_bytes(&bytes) {
-                public_inputs.push(fr);
-            }
-        }
+        // 2) 计算公钥哈希并转换为单个Fr元素
+        use blake2::{Blake2s256, Digest};
+        let pk_hash_bytes = Blake2s256::digest(expected_public_key);
+        let pk_hash_field = Self::bytes_to_single_field(&pk_hash_bytes);
+        public_inputs.push(pk_hash_field);
+        
+        // 3) 计算nonce哈希并转换为单个Fr元素
+        let nonce_hash_bytes = Blake2s256::digest(nonce);
+        let nonce_hash_field = Self::bytes_to_single_field(&nonce_hash_bytes);
+        public_inputs.push(nonce_hash_field);
         
         log::debug!("公共输入元素数量: {}", public_inputs.len());
+        log::debug!("  CID哈希字段: {} 个", public_inputs.len() - 2);
+        log::debug!("  公钥哈希: 1 个");
+        log::debug!("  Nonce哈希: 1 个");
         
         // 3. 验证证明
         log::info!("验证Groth16证明...");
@@ -228,6 +222,27 @@ impl ZKPVerifier {
         }
         
         Ok(is_valid)
+    }
+    
+    /// 将字节数组转换为字段元素数组（与电路保持一致）
+    fn bytes_to_field_elements(bytes: &[u8]) -> Vec<ark_bn254::Fr> {
+        use ark_ff::PrimeField;
+        bytes.chunks(31) // Fr字段最多安全编码31字节
+            .map(|chunk| {
+                let mut bytes_padded = [0u8; 32];
+                bytes_padded[..chunk.len()].copy_from_slice(chunk);
+                ark_bn254::Fr::from_le_bytes_mod_order(&bytes_padded)
+            })
+            .collect()
+    }
+    
+    /// 将字节数组压缩为单个字段元素（与电路保持一致）
+    fn bytes_to_single_field(bytes: &[u8]) -> ark_bn254::Fr {
+        use ark_ff::PrimeField;
+        let len = bytes.len().min(31);
+        let mut bytes_padded = [0u8; 32];
+        bytes_padded[..len].copy_from_slice(&bytes[..len]);
+        ark_bn254::Fr::from_le_bytes_mod_order(&bytes_padded)
     }
 }
 

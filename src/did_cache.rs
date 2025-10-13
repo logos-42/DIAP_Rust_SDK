@@ -267,6 +267,7 @@ mod tests {
             }],
             authentication: vec![format!("{}#key-1", did)],
             service: None,
+            created: chrono::Utc::now().to_rfc3339(),
         }
     }
     

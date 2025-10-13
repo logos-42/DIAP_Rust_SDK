@@ -240,19 +240,90 @@ impl KeyPair {
         Ok(format!("did:key:{}", multibase_key))
     }
     
-    /// 加密数据（简单实现，生产环境应使用更强的加密）
-    fn encrypt_data(data: &str, _password: &str) -> Result<String> {
-        // TODO: 使用AES-GCM加密
-        // 当前简单实现：使用base64编码
-        Ok(general_purpose::STANDARD.encode(data))
+    /// 加密数据（使用AES-256-GCM + Argon2）
+    fn encrypt_data(data: &str, password: &str) -> Result<String> {
+        use aes_gcm::{
+            aead::{Aead, KeyInit},
+            Aes256Gcm, Nonce
+        };
+        use argon2::{Argon2, PasswordHasher};
+        use argon2::password_hash::{SaltString, rand_core::OsRng};
+        
+        // 1. 生成随机salt
+        let salt = SaltString::generate(&mut OsRng);
+        
+        // 2. 使用Argon2从密码派生密钥
+        let argon2 = Argon2::default();
+        let password_hash = argon2.hash_password(password.as_bytes(), &salt)
+            .map_err(|e| anyhow::anyhow!("Argon2密钥派生失败: {:?}", e))?;
+        
+        // 从hash中提取密钥 (32字节)
+        let key_bytes = password_hash.hash
+            .ok_or_else(|| anyhow::anyhow!("密钥派生失败"))?;
+        let mut key = [0u8; 32];
+        let key_slice = key_bytes.as_bytes();
+        key.copy_from_slice(&key_slice[..32.min(key_slice.len())]);
+        
+        // 3. 生成随机nonce
+        let mut nonce_bytes = [0u8; 12];
+        rand::RngCore::fill_bytes(&mut rand::thread_rng(), &mut nonce_bytes);
+        let nonce = Nonce::from_slice(&nonce_bytes);
+        
+        // 4. 加密数据
+        let cipher = Aes256Gcm::new(&key.into());
+        let ciphertext = cipher.encrypt(nonce, data.as_bytes())
+            .map_err(|e| anyhow::anyhow!("AES-GCM加密失败: {:?}", e))?;
+        
+        // 5. 组合结果: salt(base64) + ":" + nonce(base64) + ":" + ciphertext(base64)
+        let result = format!(
+            "{}:{}:{}",
+            general_purpose::STANDARD.encode(salt.as_str()),
+            general_purpose::STANDARD.encode(&nonce_bytes),
+            general_purpose::STANDARD.encode(&ciphertext)
+        );
+        
+        Ok(result)
     }
     
-    /// 解密数据
-    fn decrypt_data(encrypted: &str, _password: &str) -> Result<String> {
-        // TODO: 使用AES-GCM解密
-        // 当前简单实现：使用base64解码
-        let bytes = general_purpose::STANDARD.decode(encrypted)?;
-        Ok(String::from_utf8(bytes)?)
+    /// 解密数据（使用AES-256-GCM + Argon2）
+    fn decrypt_data(encrypted: &str, password: &str) -> Result<String> {
+        use aes_gcm::{
+            aead::{Aead, KeyInit},
+            Aes256Gcm, Nonce
+        };
+        use argon2::{Argon2, PasswordHasher};
+        use argon2::password_hash::SaltString;
+        
+        // 1. 解析加密数据
+        let parts: Vec<&str> = encrypted.split(':').collect();
+        if parts.len() != 3 {
+            anyhow::bail!("加密数据格式错误");
+        }
+        
+        let salt_str = String::from_utf8(general_purpose::STANDARD.decode(parts[0])?)?;
+        let salt = SaltString::from_b64(&salt_str)
+            .map_err(|e| anyhow::anyhow!("Salt解析失败: {:?}", e))?;
+        let nonce_bytes = general_purpose::STANDARD.decode(parts[1])?;
+        let ciphertext = general_purpose::STANDARD.decode(parts[2])?;
+        
+        // 2. 使用相同的salt重新派生密钥
+        let argon2 = Argon2::default();
+        let password_hash = argon2.hash_password(password.as_bytes(), &salt)
+            .map_err(|e| anyhow::anyhow!("Argon2密钥派生失败: {:?}", e))?;
+        
+        let key_bytes = password_hash.hash
+            .ok_or_else(|| anyhow::anyhow!("密钥派生失败"))?;
+        let mut key = [0u8; 32];
+        let key_slice = key_bytes.as_bytes();
+        key.copy_from_slice(&key_slice[..32.min(key_slice.len())]);
+        
+        // 3. 解密
+        let cipher = Aes256Gcm::new(&key.into());
+        let nonce = Nonce::from_slice(&nonce_bytes);
+        let plaintext = cipher.decrypt(nonce, ciphertext.as_ref())
+            .map_err(|e| anyhow::anyhow!("AES-GCM解密失败（密码可能错误）: {:?}", e))?;
+        
+        Ok(String::from_utf8(plaintext)?)
     }
 }
 

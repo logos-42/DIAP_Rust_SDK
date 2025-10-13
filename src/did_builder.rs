@@ -161,13 +161,14 @@ impl DIDBuilder {
             public_key_multibase,
         };
         
-        // 添加签名的PeerID服务（隐私保护）
+        // 添加加密的PeerID服务（隐私保护 - AES-256-GCM）
         let mut services = self.services.clone();
         let libp2p_service = Service {
             id: "#libp2p".to_string(),
             service_type: "LibP2PNode".to_string(),
             service_endpoint: serde_json::json!({
-                "peerIdHash": general_purpose::STANDARD.encode(&encrypted_peer_id.peer_id_hash),
+                "ciphertext": general_purpose::STANDARD.encode(&encrypted_peer_id.ciphertext),
+                "nonce": general_purpose::STANDARD.encode(&encrypted_peer_id.nonce),
                 "signature": general_purpose::STANDARD.encode(&encrypted_peer_id.signature),
                 "method": encrypted_peer_id.method,
             }),
@@ -217,17 +218,18 @@ pub async fn get_did_document_from_cid(
     Ok(did_doc)
 }
 
-/// 验证DID文档的完整性（通过哈希）
-/// 验证DID文档的SHA-256哈希是否与CID的multihash部分匹配
+/// 验证DID文档的完整性（改进版：支持多种哈希算法）
+/// 验证DID文档的哈希是否与CID的multihash部分匹配
 pub fn verify_did_document_integrity(
     did_doc: &DIDDocument,
     expected_cid: &str,
 ) -> Result<bool> {
-    use sha2::{Sha256, Digest};
+    use sha2::{Sha256, Sha512, Digest};
+    use blake2::{Blake2b512, Blake2s256};
     use cid::Cid;
     use std::str::FromStr;
     
-    log::info!("验证DID文档完整性与CID绑定");
+    log::info!("验证DID文档完整性与CID绑定（支持多种哈希算法）");
     
     // 1. 序列化DID文档（使用确定性序列化）
     let json = serde_json::to_string(did_doc)
@@ -235,18 +237,14 @@ pub fn verify_did_document_integrity(
     
     log::debug!("  DID文档大小: {} 字节", json.len());
     
-    // 2. 计算文档的SHA-256哈希
-    let computed_hash = Sha256::digest(json.as_bytes());
-    log::debug!("  计算的哈希: {}", hex::encode(&computed_hash));
-    
-    // 3. 解析CID
+    // 2. 解析CID
     let cid = Cid::from_str(expected_cid)
         .context("解析CID失败")?;
     
     log::debug!("  CID版本: {:?}", cid.version());
     log::debug!("  CID codec: {:?}", cid.codec());
     
-    // 4. 提取CID的multihash部分
+    // 3. 提取CID的multihash部分
     let multihash = cid.hash();
     let hash_code = multihash.code();
     let hash_digest = multihash.digest();
@@ -254,14 +252,39 @@ pub fn verify_did_document_integrity(
     log::debug!("  Multihash code: 0x{:x}", hash_code);
     log::debug!("  Multihash digest: {}", hex::encode(hash_digest));
     
-    // 5. 验证哈希算法（应该是SHA-256, code = 0x12）
-    if hash_code != 0x12 {
-        log::warn!("  ⚠️ CID使用的不是SHA-256哈希（code: 0x{:x}）", hash_code);
-        // 注意：IPFS可能使用不同的哈希算法，这是正常的
-        // 我们仍然可以验证，但需要相应地计算哈希
-    }
+    // 4. 根据哈希算法计算文档哈希
+    let computed_hash: Vec<u8> = match hash_code {
+        0x12 => {
+            // SHA-256
+            log::debug!("  使用SHA-256计算哈希");
+            Sha256::digest(json.as_bytes()).to_vec()
+        }
+        0x13 => {
+            // SHA-512
+            log::debug!("  使用SHA-512计算哈希");
+            Sha512::digest(json.as_bytes()).to_vec()
+        }
+        0xb220 => {
+            // Blake2b-512
+            log::debug!("  使用Blake2b-512计算哈希");
+            Blake2b512::digest(json.as_bytes()).to_vec()
+        }
+        0xb260 => {
+            // Blake2s-256
+            log::debug!("  使用Blake2s-256计算哈希");
+            Blake2s256::digest(json.as_bytes()).to_vec()
+        }
+        _ => {
+            log::warn!("  ⚠️ 不支持的哈希算法: 0x{:x}", hash_code);
+            // 默认使用SHA-256
+            log::debug!("  回退到SHA-256");
+            Sha256::digest(json.as_bytes()).to_vec()
+        }
+    };
     
-    // 6. 比较哈希值
+    log::debug!("  计算的哈希: {}", hex::encode(&computed_hash));
+    
+    // 5. 比较哈希值
     let hashes_match = computed_hash.as_slice() == hash_digest;
     
     if hashes_match {
@@ -270,6 +293,7 @@ pub fn verify_did_document_integrity(
         log::warn!("❌ DID文档哈希与CID不匹配");
         log::debug!("  预期: {}", hex::encode(hash_digest));
         log::debug!("  实际: {}", hex::encode(&computed_hash));
+        log::debug!("  哈希算法: 0x{:x}", hash_code);
     }
     
     Ok(hashes_match)
