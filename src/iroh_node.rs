@@ -81,8 +81,6 @@ impl IrohNode {
 
 /// Iroh辅助函数
 pub mod helpers {
-    use super::*;
-    
     /// 检查Iroh功能是否可用
     pub fn is_iroh_available() -> bool {
         cfg!(feature = "iroh")
