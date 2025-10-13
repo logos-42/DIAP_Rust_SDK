@@ -20,7 +20,7 @@ pub mod libp2p_identity;
 pub mod libp2p_node;
 pub mod p2p_communicator;
 
-// 加密PeerID
+// 签名PeerID（隐私保护）
 pub mod encrypted_peer_id;
 
 // ZKP模块
@@ -30,6 +30,18 @@ pub mod zkp_setup;
 
 // 统一身份管理
 pub mod identity_manager;
+
+// Nonce管理器（防重放攻击）
+pub mod nonce_manager;
+
+// DID文档缓存
+pub mod did_cache;
+
+// IPFS Pubsub认证通讯
+pub mod pubsub_authenticator;
+
+// Iroh节点（预留）
+pub mod iroh_node;
 
 // 配置管理（保留）
 pub mod config_manager;
@@ -114,10 +126,38 @@ pub use config_manager::{
     LoggingConfig,
 };
 
+// Nonce管理器
+pub use nonce_manager::{
+    NonceManager,
+    NonceRecord,
+};
+
+// DID文档缓存
+pub use did_cache::{
+    DIDCache,
+    CacheEntry,
+    CacheStats,
+};
+
+// Pubsub认证器
+pub use pubsub_authenticator::{
+    PubsubAuthenticator,
+    AuthenticatedMessage,
+    MessageVerification,
+    TopicPolicy,
+    TopicConfig,
+};
+
+// Iroh节点
+pub use iroh_node::{
+    IrohNode,
+    IrohConfig,
+};
+
 // ============ 常用类型重导出 ============
 pub use serde::{Deserialize, Serialize};
 pub use anyhow::Result;
 
 // ============ 版本信息 ============
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
-pub const DESCRIPTION: &str = "DIAP Rust SDK - ZKP版本：使用零知识证明验证DID-CID绑定";
+pub const DESCRIPTION: &str = "DIAP Rust SDK - ZKP版本：使用零知识证明验证DID-CID绑定 + IPFS Pubsub认证通讯";
