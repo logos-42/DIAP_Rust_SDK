@@ -164,9 +164,9 @@ impl ZKPVerifier {
     pub fn verify(
         &self,
         proof_bytes: &[u8],
-        _nonce: &[u8],
-        _cid_hash: &[u8],
-        _expected_public_key: &[u8],
+        nonce: &[u8],
+        cid_hash: &[u8],
+        expected_public_key: &[u8],
     ) -> Result<bool> {
         log::info!("🔍 开始验证ZKP证明");
         
@@ -177,9 +177,40 @@ impl ZKPVerifier {
         let proof = Proof::<Bn254>::deserialize_uncompressed(proof_bytes)
             .context("反序列化证明失败")?;
         
-        // 2. 准备公共输入（简化版）
-        // 注意：实际应该将字节转换为Fr元素
-        let public_inputs = vec![];  // TODO: 转换公共输入
+        // 2. 准备公共输入（转换为Fr元素）
+        use ark_ff::Field;
+        use ark_bn254::Fr;
+        
+        let mut public_inputs = Vec::new();
+        
+        // 将nonce转换为Fr元素
+        for chunk in nonce.chunks(31) {  // Fr可以安全容纳31字节
+            let mut bytes = [0u8; 32];
+            bytes[..chunk.len()].copy_from_slice(chunk);
+            if let Some(fr) = Fr::from_random_bytes(&bytes) {
+                public_inputs.push(fr);
+            }
+        }
+        
+        // 将CID哈希转换为Fr元素
+        for chunk in cid_hash.chunks(31) {
+            let mut bytes = [0u8; 32];
+            bytes[..chunk.len()].copy_from_slice(chunk);
+            if let Some(fr) = Fr::from_random_bytes(&bytes) {
+                public_inputs.push(fr);
+            }
+        }
+        
+        // 将公钥转换为Fr元素
+        for chunk in expected_public_key.chunks(31) {
+            let mut bytes = [0u8; 32];
+            bytes[..chunk.len()].copy_from_slice(chunk);
+            if let Some(fr) = Fr::from_random_bytes(&bytes) {
+                public_inputs.push(fr);
+            }
+        }
+        
+        log::debug!("公共输入元素数量: {}", public_inputs.len());
         
         // 3. 验证证明
         log::info!("验证Groth16证明...");
@@ -193,7 +224,7 @@ impl ZKPVerifier {
         if is_valid {
             log::info!("✅ 证明验证成功");
         } else {
-            log::error!("❌ 证明验证失败");
+            log::warn!("⚠️ 证明验证失败（可能是公共输入不匹配或证明无效）");
         }
         
         Ok(is_valid)

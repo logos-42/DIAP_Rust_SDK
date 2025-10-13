@@ -161,15 +161,15 @@ impl DIDBuilder {
             public_key_multibase,
         };
         
-        // 添加加密的PeerID服务
+        // 添加签名的PeerID服务（隐私保护）
         let mut services = self.services.clone();
         let libp2p_service = Service {
             id: "#libp2p".to_string(),
             service_type: "LibP2PNode".to_string(),
             service_endpoint: serde_json::json!({
-                "encryptedPeerID": general_purpose::STANDARD.encode(&encrypted_peer_id.ciphertext),
-                "nonce": general_purpose::STANDARD.encode(&encrypted_peer_id.nonce),
-                "encryptionMethod": encrypted_peer_id.method,
+                "peerIdHash": general_purpose::STANDARD.encode(&encrypted_peer_id.peer_id_hash),
+                "signature": general_purpose::STANDARD.encode(&encrypted_peer_id.signature),
+                "method": encrypted_peer_id.method,
             }),
         };
         services.insert(0, libp2p_service);

@@ -54,8 +54,13 @@ libp2p = { version = "0.53", features = [
     "mdns",               # 本地网络发现
     "tokio",              # Tokio运行时
     "macros",             # NetworkBehaviour派生宏
+    "gossipsub",          # Pubsub协议
 ] }
 libp2p-identity = { version = "0.2", features = ["ed25519", "secp256k1"] }
+
+# Iroh - 下一代P2P网络（预留）
+# iroh = "0.11"  # 待启用
+iroh-net = { version = "0.11", optional = true }  # Iroh网络层
 
 # 网络和系统
 reqwest = { version = "0.11", features = ["json", "multipart", "stream"] }
@@ -103,6 +108,13 @@ ark-crypto-primitives = "0.4"
 
 # Blake2哈希（用于ZKP电路）
 blake2 = "0.10"
+
+# 序列化
+bincode = "1.3"
+
+[features]
+default = []
+iroh = ["iroh-net"]  # 启用Iroh支持
 
 [dev-dependencies]
 tokio-test = "0.4"

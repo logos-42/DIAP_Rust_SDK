@@ -7,7 +7,7 @@ use crate::key_manager::KeyPair;
 use crate::did_builder::{DIDBuilder, DIDDocument, get_did_document_from_cid};
 use crate::ipfs_client::IpfsClient;
 use crate::zkp_prover::{ZKPProver, ZKPVerifier, ProofResult};
-use crate::encrypted_peer_id::{EncryptedPeerID, decrypt_peer_id_with_secret};
+use crate::encrypted_peer_id::{EncryptedPeerID, decrypt_peer_id_with_secret, verify_peer_id_signature};
 use libp2p::PeerId;
 use ed25519_dalek::SigningKey;
 use base64::{Engine as _, engine::general_purpose};
@@ -158,7 +158,7 @@ impl IdentityManager {
             did: publish_result.did,
             cid: publish_result.cid,
             did_document: publish_result.did_document,
-            encrypted_peer_id_hex: hex::encode(&publish_result.encrypted_peer_id.ciphertext),
+            encrypted_peer_id_hex: hex::encode(&publish_result.encrypted_peer_id.signature),
             registered_at: chrono::Utc::now().to_rfc3339(),
         })
     }
@@ -244,7 +244,32 @@ impl IdentityManager {
         })
     }
     
-    /// 🔓 解密PeerID（持有私钥的用户）
+    /// 🔓 验证PeerID签名（任何人都可以验证）
+    pub fn verify_peer_id(
+        &self,
+        did_document: &DIDDocument,
+        encrypted: &EncryptedPeerID,
+        claimed_peer_id: &PeerId,
+    ) -> Result<bool> {
+        // 提取公钥
+        let public_key_bytes = self.extract_public_key(did_document)?;
+        
+        // 跳过multicodec前缀（通常是2字节）
+        let key_bytes = if public_key_bytes.len() > 32 {
+            &public_key_bytes[public_key_bytes.len() - 32..]
+        } else {
+            &public_key_bytes
+        };
+        
+        let verifying_key = ed25519_dalek::VerifyingKey::from_bytes(
+            key_bytes.try_into().context("公钥长度错误")?
+        )?;
+        
+        verify_peer_id_signature(&verifying_key, encrypted, claimed_peer_id)
+    }
+    
+    /// 🔓 解密PeerID（已废弃 - 新方案不支持）
+    #[deprecated(note = "新签名方案不支持解密PeerID，请使用verify_peer_id")]
     pub fn decrypt_peer_id(
         &self,
         keypair: &KeyPair,
@@ -268,7 +293,7 @@ impl IdentityManager {
         Ok(public_key)
     }
     
-    /// 从DID文档提取加密的PeerID
+    /// 从DID文档提取签名的PeerID
     pub fn extract_encrypted_peer_id(&self, did_document: &DIDDocument) -> Result<EncryptedPeerID> {
         let services = did_document.service.as_ref()
             .ok_or_else(|| anyhow::anyhow!("DID文档缺少服务端点"))?;
@@ -279,24 +304,25 @@ impl IdentityManager {
         
         let endpoint = &libp2p_service.service_endpoint;
         
-        let ciphertext_b64 = endpoint.get("encryptedPeerID")
+        let peer_id_hash_b64 = endpoint.get("peerIdHash")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("缺少encryptedPeerID字段"))?;
+            .ok_or_else(|| anyhow::anyhow!("缺少peerIdHash字段"))?;
         
-        let nonce_b64 = endpoint.get("nonce")
+        let signature_b64 = endpoint.get("signature")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("缺少nonce字段"))?;
+            .ok_or_else(|| anyhow::anyhow!("缺少signature字段"))?;
         
-        let method = endpoint.get("encryptionMethod")
+        let method = endpoint.get("method")
             .and_then(|v| v.as_str())
-            .unwrap_or("AES-256-GCM")
+            .unwrap_or("Ed25519-Signature-V2")
             .to_string();
         
         Ok(EncryptedPeerID {
-            ciphertext: general_purpose::STANDARD.decode(ciphertext_b64)
-                .context("解码ciphertext失败")?,
-            nonce: general_purpose::STANDARD.decode(nonce_b64)
-                .context("解码nonce失败")?,
+            peer_id_hash: general_purpose::STANDARD.decode(peer_id_hash_b64)
+                .context("解码peerIdHash失败")?,
+            signature: general_purpose::STANDARD.decode(signature_b64)
+                .context("解码signature失败")?,
+            blinding_factor: None,
             method,
         })
     }

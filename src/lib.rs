@@ -69,11 +69,12 @@ pub use p2p_communicator::{
     P2PCommunicator, DIAPMessage, DIAPResponse
 };
 
-// 加密PeerID
+// 签名PeerID（隐私保护）
 pub use encrypted_peer_id::{
     EncryptedPeerID,
     encrypt_peer_id,
     decrypt_peer_id_with_secret,
+    verify_peer_id_signature,
     verify_encrypted_peer_id_ownership,
 };
 
