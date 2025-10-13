@@ -6,7 +6,7 @@
 
 **DIAP (Decentralized Intelligent Agent Protocol)** - 基于零知识证明的去中心化智能体身份协议 Rust SDK
 
-> **🆕 v0.2.1 - ZKP优化版**: 使用零知识证明验证DID-CID绑定，移除IPNS依赖，大幅简化架构
+> **🆕 v0.2.2 - ZKP优化版**: 使用零知识证明验证DID-CID绑定，移除IPNS依赖，大幅简化架构
 
 ## 🎯 核心特性
 
@@ -142,7 +142,7 @@
 
 ```toml
 [dependencies]
-diap-rs-sdk = "0.2.1"
+diap-rs-sdk = "0.2.2"
 tokio = { version = "1.0", features = ["full"] }
 env_logger = "0.10"
 ```
@@ -304,12 +304,13 @@ cargo run --example zkp_identity_demo
 
 ## 🛣️ 路线图
 
-### ✅ v0.2.1 - ZKP优化（当前版本）
+### ✅ v0.2.2 - ZKP优化（当前版本）
 - [x] 移除IPNS依赖
 - [x] 实现PeerID加密
 - [x] 实现ZKP电路
 - [x] 实现证明生成/验证
 - [x] 简化DID文档结构
+- [x] 优化代码结构和文档
 
 
 ## 🤝 贡献
@@ -330,6 +331,6 @@ MIT License - 查看 [LICENSE](LICENSE) 文件
 
 ---
 
-**版本**: 0.2.1
+**版本**: 0.2.2
 **发布日期**: 2025-10-13  
 **状态**: Beta - ZKP核心功能完整，适合开发使用
