@@ -333,8 +333,6 @@ cargo run --example zkp_identity_demo
 - 新增: `DIDBindingCircuit::verify_key_derivation()` - 密钥派生验证
 - 修改: `EncryptedPeerID` 结构体（添加ciphertext、nonce字段）
 
-详细信息请查看 [FIXES_SUMMARY.md](FIXES_SUMMARY.md)
-
 ### v0.2.1 - 初始ZKP版本
 - 实现基于零知识证明的DID-CID绑定验证
 - 移除IPNS依赖，使用单层IPFS存储
