@@ -40,6 +40,9 @@ pub mod did_cache;
 // IPFS Pubsub认证通讯
 pub mod pubsub_authenticator;
 
+// Noir ZKP集成（新版本）
+pub mod noir_zkp;
+
 // Iroh节点（预留）
 pub mod iroh_node;
 
@@ -105,6 +108,15 @@ pub use zkp_prover::{
 
 pub use zkp_setup::{
     ZKPSetup,
+};
+
+// Noir ZKP集成
+pub use noir_zkp::{
+    NoirZKPManager,
+    NoirAgent,
+    NoirProofResult,
+    PerformanceMetrics,
+    NoirProverInputs,
 };
 
 // 身份管理

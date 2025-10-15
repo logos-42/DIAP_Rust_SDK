@@ -1,6 +1,6 @@
 [package]
 name = "diap-rs-sdk"
-version = "0.2.3"
+version = "0.2.4"
 edition = "2021"
 authors = ["liuyuanjie <2844169590@qq.com>"]
 description = "DIAP Rust SDK - 基于零知识证明的去中心化智能体身份协议，使用ZKP验证DID-CID绑定，无需IPNS"
@@ -20,16 +20,13 @@ exclude = [
     ".idea/",
 ]
 [dependencies]
-# HTTP服务器
+# 核心运行时
 tokio = { version = "1.0", features = ["full"] }
-warp = "0.3"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 
 # 加密和密钥生成
 ed25519-dalek = "2.0"
-secp256k1 = "0.28"
-x25519-dalek = "2.0"
 rand = "0.8"
 bs58 = "0.5"
 base64 = "0.21"
@@ -37,40 +34,27 @@ sha2 = "0.10"
 hex = "0.4"
 aes-gcm = "0.10"  # 私钥加密
 
-# IPFS/IPNS
+# IPFS/IPNS（保留核心功能）
 cid = "0.10"
 multihash = "0.18"
-# w3name将在后续添加（需要确认版本）
 
-# libp2p核心
+# libp2p核心（简化版）
 libp2p = { version = "0.53", features = [
     "tcp",                # TCP传输
     "noise",              # Noise协议加密
     "yamux",              # Yamux多路复用
-    "kad",                # Kademlia DHT
     "identify",           # 节点识别
     "ping",               # Ping协议
-    "request-response",   # 请求响应协议
-    "mdns",               # 本地网络发现
     "tokio",              # Tokio运行时
     "macros",             # NetworkBehaviour派生宏
-    "gossipsub",          # Pubsub协议
 ] }
-libp2p-identity = { version = "0.2", features = ["ed25519", "secp256k1"] }
+libp2p-identity = { version = "0.2", features = ["ed25519"] }
 
-# Iroh - 下一代P2P网络（预留）
-# iroh = "0.11"  # 待启用
-iroh-net = { version = "0.11", optional = true }  # Iroh网络层
-
-# 网络和系统
-reqwest = { version = "0.11", features = ["json", "multipart", "stream"] }
-url = "2.4"
+# 网络和系统（简化）
 chrono = { version = "0.4", features = ["serde"] }
-uuid = { version = "1.0", features = ["v4", "serde"] }
 
-# 配置和存储
+# 配置和存储（简化）
 toml = "0.8"
-sled = "0.34"  # 嵌入式数据库用于缓存
 directories = "5.0"  # 跨平台目录
 
 # 日志
@@ -83,18 +67,17 @@ thiserror = "1.0"
 
 # 异步运行时
 futures = "0.3"
-prost = "0.12"
 
+# 网络和系统（必要依赖）
+reqwest = { version = "0.11", features = ["json", "multipart", "stream"] }
+uuid = { version = "1.0", features = ["v4", "serde"] }
+
+# 缓存和存储
+dashmap = "5.5"
+bincode = "1.3"
 argon2 = "0.5"
 
-# 缓存
-dashmap = "5.5"
-parking_lot = "0.12"
-
-# 文件系统
-dirs = "5.0"
-
-# ZKP - arkworks生态系统
+# ZKP - arkworks生态系统（保留用于向后兼容）
 ark-std = "0.4"
 ark-ff = "0.4"
 ark-ec = "0.4"
@@ -109,12 +92,11 @@ ark-crypto-primitives = "0.4"
 # Blake2哈希（用于ZKP电路）
 blake2 = "0.10"
 
-# 序列化
-bincode = "1.3"
-
 [features]
-default = []
-iroh = ["iroh-net"]  # 启用Iroh支持
+default = ["noir-zkp"]
+noir-zkp = []  # 启用Noir ZKP支持（默认）
+arkworks-zkp = []  # 启用arkworks ZKP支持（向后兼容）
+iroh = []  # 启用Iroh支持（预留功能）
 
 [dev-dependencies]
 tokio-test = "0.4"
