@@ -7,6 +7,7 @@ use ark_groth16::{Groth16, Proof, ProvingKey, VerifyingKey, PreparedVerifyingKey
 use ark_snark::SNARK;  // 必须导入SNARK trait
 use ark_serialize::{CanonicalSerialize, CanonicalDeserialize};
 use ark_std::rand::thread_rng;
+use serde::{Serialize, Deserialize};
 use crate::zkp_circuit::DIDBindingCircuit;
 use ed25519_dalek::SigningKey;
 
@@ -17,7 +18,7 @@ pub struct ZKPProver {
 }
 
 /// 证明结果
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProofResult {
     /// Groth16证明
     pub proof: Vec<u8>,

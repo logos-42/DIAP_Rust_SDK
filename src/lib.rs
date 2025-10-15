@@ -12,6 +12,9 @@ pub mod key_manager;
 // IPFS客户端
 pub mod ipfs_client;
 
+// 内置IPFS节点管理器
+pub mod ipfs_node_manager;
+
 // DID构建器（简化版）
 pub mod did_builder;
 
@@ -43,6 +46,12 @@ pub mod pubsub_authenticator;
 // Noir ZKP集成（新版本）
 pub mod noir_zkp;
 
+// 智能体认证管理器（统一API）
+pub mod agent_auth;
+
+// ZKP密钥生成器
+pub mod key_generator;
+
 // Iroh节点（预留）
 pub mod iroh_node;
 
@@ -59,6 +68,14 @@ pub use key_manager::{
 // IPFS客户端
 pub use ipfs_client::{
     IpfsClient, IpfsUploadResult
+};
+
+// 内置IPFS节点管理器
+pub use ipfs_node_manager::{
+    IpfsNodeManager,
+    IpfsNodeConfig,
+    IpfsNodeStatus,
+    IpfsNodeInfo,
 };
 
 // DID构建器
@@ -117,6 +134,20 @@ pub use noir_zkp::{
     NoirProofResult,
     PerformanceMetrics,
     NoirProverInputs,
+};
+
+// 智能体认证管理器
+pub use agent_auth::{
+    AgentAuthManager,
+    AuthResult,
+    BatchAuthResult,
+};
+
+// ZKP密钥生成器
+pub use key_generator::{
+    generate_simple_zkp_keys,
+    ensure_zkp_keys_exist,
+    generate_noir_keys,
 };
 
 // 身份管理
