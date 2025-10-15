@@ -26,10 +26,7 @@ pub mod p2p_communicator;
 // 签名PeerID（隐私保护）
 pub mod encrypted_peer_id;
 
-// ZKP模块
-pub mod zkp_circuit;
-pub mod zkp_prover;
-pub mod zkp_setup;
+// ZKP模块 (基于Noir)
 
 // 统一身份管理
 pub mod identity_manager;
@@ -47,11 +44,12 @@ pub mod pubsub_authenticator;
 pub mod noir_zkp;
 pub mod noir_verifier;
 
-// 统一ZKP接口（解决功能错位问题）
-pub mod unified_zkp;
 
 // 智能体验证闭环
 pub mod agent_verification;
+
+// IPFS双向验证系统
+pub mod ipfs_bidirectional_verification;
 
 // 智能体认证管理器（统一API）
 pub mod agent_auth;
@@ -117,22 +115,7 @@ pub use encrypted_peer_id::{
     verify_encrypted_peer_id_ownership,
 };
 
-// ZKP模块
-pub use zkp_circuit::{
-    DIDBindingCircuit,
-    CircuitParams,
-};
-
-pub use zkp_prover::{
-    ZKPProver,
-    ZKPVerifier,
-    ProofResult,
-    generate_trusted_setup,
-};
-
-pub use zkp_setup::{
-    ZKPSetup,
-};
+// ZKP模块 (基于Noir)
 
 // Noir ZKP集成
 pub use noir_zkp::{
@@ -150,17 +133,6 @@ pub use noir_verifier::{
     ImprovedNoirZKPManager,
 };
 
-// 统一ZKP接口
-pub use unified_zkp::{
-    UnifiedZKPManager,
-    UnifiedZKPInputs,
-    UnifiedZKPOutput,
-    UnifiedVerificationResult,
-    ZKPScheme,
-    ZKPPerformanceTester,
-    ZKPPerformanceComparison,
-    ZKPSchemeResults,
-};
 
 // 智能体验证闭环
 pub use agent_verification::{
@@ -169,6 +141,18 @@ pub use agent_verification::{
     AgentVerificationResponse,
     AgentVerificationStatus,
     CacheStats,
+};
+
+// IPFS双向验证系统
+pub use ipfs_bidirectional_verification::{
+    IpfsBidirectionalVerificationManager,
+    AgentSession,
+    SessionStatus,
+    BidirectionalVerificationResult,
+    VerificationResult,
+    VerificationStatus,
+    ProofData,
+    VerificationChallenge,
 };
 
 // 智能体认证管理器
@@ -238,4 +222,4 @@ pub use anyhow::Result;
 
 // ============ 版本信息 ============
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
-pub const DESCRIPTION: &str = "DIAP Rust SDK - ZKP版本：使用零知识证明验证DID-CID绑定 + IPFS Pubsub认证通讯";
+pub const DESCRIPTION: &str = "DIAP Rust SDK - Noir ZKP版本：基于Noir零知识证明的去中心化智能体身份验证系统";

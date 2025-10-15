@@ -12,11 +12,13 @@ pub fn generate_simple_zkp_keys() -> Result<(Vec<u8>, Vec<u8>)> {
     log::info!("🔧 生成简化的ZKP密钥对...");
     log::warn!("⚠️  这是演示版本，生产环境需要更安全的可信设置");
     
-    // 使用arkworks-rs生成简化的密钥对
-    use crate::zkp_setup::ZKPSetup;
+    // 注意：此函数已废弃，因为我们现在使用Noir ZKP
+    // Noir不需要传统的可信设置过程
+    log::warn!("⚠️  generate_simple_zkp_keys已废弃，请使用Noir ZKP");
     
-    // 生成可信设置
-    let (pk_bytes, vk_bytes) = ZKPSetup::generate_keys()?;
+    // 返回空的密钥对（占位符）
+    let pk_bytes = vec![];
+    let vk_bytes = vec![];
     
     log::info!("✅ ZKP密钥对生成完成");
     Ok((pk_bytes, vk_bytes))

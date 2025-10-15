@@ -18,7 +18,7 @@ pub struct AgentAuthManager {
 pub struct AuthResult {
     pub success: bool,
     pub agent_id: String,
-    pub proof: Option<crate::ProofResult>,
+    pub proof: Option<Vec<u8>>,
     pub verification_details: Vec<String>,
     pub timestamp: u64,
     pub processing_time_ms: u64,
@@ -161,7 +161,7 @@ impl AgentAuthManager {
     }
     
     /// 验证身份
-    pub async fn verify_identity(&self, cid: &str, proof: &crate::ProofResult) -> Result<AuthResult> {
+    pub async fn verify_identity(&self, cid: &str, proof: &Vec<u8>) -> Result<AuthResult> {
         log::info!("🔍 验证身份");
         
         let start_time = Instant::now();
@@ -173,7 +173,7 @@ impl AgentAuthManager {
         // 验证证明
         let verification = self.identity_manager.verify_identity_with_zkp(
             cid,
-            &proof.proof,
+            proof,
             &nonce
         ).await?;
         

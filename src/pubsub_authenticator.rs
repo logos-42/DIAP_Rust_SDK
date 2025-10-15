@@ -225,7 +225,7 @@ impl PubsubAuthenticator {
             topic: topic.to_string(),
             content: content.to_vec(),
             nonce,
-            zkp_proof: zkp_proof.proof,
+            zkp_proof: zkp_proof,
             signature: signature.to_bytes().to_vec(),
             timestamp: std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)?
