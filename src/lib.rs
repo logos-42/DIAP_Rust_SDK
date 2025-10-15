@@ -45,6 +45,13 @@ pub mod pubsub_authenticator;
 
 // Noir ZKP集成（新版本）
 pub mod noir_zkp;
+pub mod noir_verifier;
+
+// 统一ZKP接口（解决功能错位问题）
+pub mod unified_zkp;
+
+// 智能体验证闭环
+pub mod agent_verification;
 
 // 智能体认证管理器（统一API）
 pub mod agent_auth;
@@ -136,6 +143,34 @@ pub use noir_zkp::{
     NoirProverInputs,
 };
 
+// Noir验证器
+pub use noir_verifier::{
+    NoirVerifier,
+    NoirVerificationResult,
+    ImprovedNoirZKPManager,
+};
+
+// 统一ZKP接口
+pub use unified_zkp::{
+    UnifiedZKPManager,
+    UnifiedZKPInputs,
+    UnifiedZKPOutput,
+    UnifiedVerificationResult,
+    ZKPScheme,
+    ZKPPerformanceTester,
+    ZKPPerformanceComparison,
+    ZKPSchemeResults,
+};
+
+// 智能体验证闭环
+pub use agent_verification::{
+    AgentVerificationManager,
+    AgentVerificationRequest,
+    AgentVerificationResponse,
+    AgentVerificationStatus,
+    CacheStats,
+};
+
 // 智能体认证管理器
 pub use agent_auth::{
     AgentAuthManager,
@@ -179,7 +214,7 @@ pub use nonce_manager::{
 pub use did_cache::{
     DIDCache,
     CacheEntry,
-    CacheStats,
+    CacheStats as DIDCacheStats,
 };
 
 // Pubsub认证器

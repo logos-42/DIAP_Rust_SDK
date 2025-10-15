@@ -155,7 +155,7 @@ impl ZKPVerifier {
         let vk = VerifyingKey::<Bn254>::deserialize_uncompressed(&mut reader)
             .context("反序列化verifying key失败")?;
         
-        self.verifying_key = Some(vk);
+        self.verifying_key = Some(vk.into());
         log::info!("✓ Verifying key加载成功");
         
         Ok(())
@@ -171,7 +171,7 @@ impl ZKPVerifier {
     ) -> Result<bool> {
         log::info!("🔍 开始验证ZKP证明（改进版）");
         
-        let pvk = self.verifying_key.as_ref()
+        let vk = self.verifying_key.as_ref()
             .ok_or_else(|| anyhow::anyhow!("Verifying key未设置"))?;
         
         // 1. 反序列化证明
@@ -211,7 +211,7 @@ impl ZKPVerifier {
         log::info!("验证Groth16证明...");
         
         let is_valid = Groth16::<Bn254>::verify_with_processed_vk(
-            pvk,
+            vk,
             &public_inputs,
             &proof,
         ).map_err(|e| anyhow::anyhow!("验证失败: {:?}", e))?;

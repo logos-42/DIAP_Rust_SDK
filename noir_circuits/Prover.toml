@@ -1,10 +1,10 @@
 # DIAP Noir Circuit - Prover Inputs
 # Public inputs (known to verifier)
-expected_did_hash = [354887, 314329]  # CID multi-hash part
-public_key_hash = 564451669544          # Public key hash
-nonce_hash = 274221240284              # Nonce hash
+expected_did_hash = [123, 116]  # CID multi-hash part
+public_key_hash = 13160          # Public key hash
+nonce_hash = 99              # Nonce hash
 
 # Private inputs (secret witness)
-secret_key = [932738, 605154]        # Secret key parts
-did_document_hash = [354887, 314329] # DID document hash
-nonce = [346934, 790410]             # Nonce parts
+secret_key = [106, 122]        # Secret key parts
+did_document_hash = [123, 116] # DID document hash
+nonce = [99, 0]             # Nonce parts

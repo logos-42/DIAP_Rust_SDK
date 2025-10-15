@@ -236,14 +236,23 @@ impl NoirZKPManager {
     
     async fn verify_noir_proof(
         &self,
-        _proof: &[u8],
-        _public_inputs: &[u8],
-        _expected_output: &str,
+        proof: &[u8],
+        public_inputs: &[u8],
+        expected_output: &str,
     ) -> Result<bool> {
-        // Simplified verification - in a real implementation,
-        // this would use the Noir verifier
-        log::info!("🔍 Simplified Noir proof verification");
-        Ok(true)
+        // 使用真正的Noir验证逻辑
+        use crate::noir_verifier::ImprovedNoirZKPManager;
+        
+        let verifier = ImprovedNoirZKPManager::new(self.circuits_path.clone());
+        let result = verifier.verify_proof(proof, public_inputs, expected_output).await?;
+        
+        if let Some(error) = result.error_message {
+            log::warn!("❌ Noir验证失败: {}", error);
+        } else {
+            log::info!("✅ Noir验证成功，耗时: {}ms", result.verification_time_ms);
+        }
+        
+        Ok(result.is_valid)
     }
     
     fn create_prover_toml(&self, inputs: &NoirProverInputs) -> Result<String> {
@@ -289,46 +298,58 @@ nonce = [{}, {}]             # Nonce parts
     }
     
     fn bytes_to_field_elements(&self, bytes: &[u8]) -> [u64; 2] {
-        // Simplified conversion from bytes to field elements
-        // Use simple hash to generate smaller numbers
-        use std::collections::hash_map::DefaultHasher;
-        use std::hash::{Hash, Hasher};
+        // 完全模拟Noir电路中的bytes_to_field_elements函数
+        // 将32字节分割成两个16字节块，然后取第一个字节作为Field值
         
-        let mut hasher1 = DefaultHasher::new();
-        bytes.hash(&mut hasher1);
-        let hash1 = hasher1.finish();
+        // 确保输入是32字节
+        let mut padded_bytes = [0u8; 32];
+        let len = bytes.len().min(32);
+        padded_bytes[..len].copy_from_slice(&bytes[..len]);
         
-        let mut hasher2 = DefaultHasher::new();
-        (bytes, 1).hash(&mut hasher2);
-        let hash2 = hasher2.finish();
+        // 分割为两个16字节块
+        let mut bytes1 = [0u8; 16];
+        let mut bytes2 = [0u8; 16];
+        bytes1.copy_from_slice(&padded_bytes[..16]);
+        bytes2.copy_from_slice(&padded_bytes[16..]);
         
-        // Use modulo to keep numbers small for TOML parsing
-        [hash1 % 1000000, hash2 % 1000000]
+        // 模拟Noir电路：fields[0] = bytes1[0] as Field; fields[1] = bytes2[0] as Field;
+        let field1 = bytes1[0] as u64;
+        let field2 = bytes2[0] as u64;
+        
+        [field1, field2]
     }
     
     fn hash_to_field_elements(&self, data: &[u8]) -> [u64; 2] {
-        // Simplified hash to field elements conversion
-        // In a real implementation, this would use proper hashing
-        use std::collections::hash_map::DefaultHasher;
-        use std::hash::{Hash, Hasher};
+        // 完全模拟Noir电路中的hash_bytes_to_fields函数
+        // 将数据填充到32字节，然后分割为两个16字节块，取第一个字节作为Field值
         
-        let mut hasher = DefaultHasher::new();
-        data.hash(&mut hasher);
-        let hash = hasher.finish();
+        // 将数据填充到32字节
+        let mut padded_data = [0u8; 32];
+        let len = data.len().min(32);
+        padded_data[..len].copy_from_slice(&data[..len]);
         
-        // Use modulo to keep numbers small for TOML parsing
-        [hash % 1000000, (hash.wrapping_mul(31)) % 1000000]
+        // 分割为两个16字节块
+        let mut bytes1 = [0u8; 16];
+        let mut bytes2 = [0u8; 16];
+        bytes1.copy_from_slice(&padded_data[..16]);
+        bytes2.copy_from_slice(&padded_data[16..]);
+        
+        // 模拟Noir电路：fields[0] = bytes1[0] as Field; fields[1] = bytes2[0] as Field;
+        let field1 = bytes1[0] as u64;
+        let field2 = bytes2[0] as u64;
+        
+        [field1, field2]
     }
     
     fn calculate_public_key_hash(&self, secret_key: &[u64; 2]) -> u64 {
-        // Simplified public key hash calculation
-        // In a real implementation, this would match the Noir circuit logic
+        // 使用与Noir电路完全一致的哈希计算逻辑
+        // 对应Noir电路中的: secret_key[0] * secret_key[1] + secret_key[0] + secret_key[1]
         secret_key[0].wrapping_mul(secret_key[1]).wrapping_add(secret_key[0]).wrapping_add(secret_key[1])
     }
     
     fn calculate_nonce_hash(&self, nonce: &[u64; 2]) -> u64 {
-        // Simplified nonce hash calculation
-        // In a real implementation, this would match the Noir circuit logic
+        // 使用与Noir电路完全一致的哈希计算逻辑
+        // 对应Noir电路中的: nonce[0] * nonce[1] + nonce[0] + nonce[1]
         nonce[0].wrapping_mul(nonce[1]).wrapping_add(nonce[0]).wrapping_add(nonce[1])
     }
 }
