@@ -298,7 +298,7 @@ cargo run --example ipfs_bidirectional_verification_demo
 
 ## 📋 更新日志
 
-### v0.2.5 (2025-01-XX) - 简化架构版
+### v0.2.5 (2025-10-15) - 简化架构版
 
 #### 🎯 架构简化
 - **专注Noir ZKP**: 移除所有Arkworks相关代码，专注于Noir实现
@@ -370,5 +370,5 @@ MIT License - 查看 [LICENSE](LICENSE) 文件
 ---
 
 **版本**: 0.2.5  
-**发布日期**: 2025-01-XX  
+**发布日期**: 2025-10-15  
 **状态**: Simplified Architecture - 简化架构版，专注Noir ZKP和完整IPFS双向验证闭环
