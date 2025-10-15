@@ -258,8 +258,9 @@ impl ConstraintSynthesizer<Fr> for DIDBindingCircuit {
             
             let sk_var = FpVar::new_witness(cs.clone(), || Ok(sk_sum))?;
             let hash_var = FpVar::new_witness(cs.clone(), || Ok(hash_sum))?;
-            let pk_var = FpVar::new_input(cs.clone(), || Ok(*pk_hash))?;
-            let nonce_var = FpVar::new_input(cs.clone(), || Ok(*nonce_hash))?;
+            // 重用之前已经创建的公共输入变量，避免重复的new_input调用
+            let pk_var = FpVar::new_constant(cs.clone(), *pk_hash)?;
+            let nonce_var = FpVar::new_constant(cs.clone(), *nonce_hash)?;
             
             // 添加非线性绑定约束：(sk + hash) * (pk + nonce) != 0
             // 这确保了所有组件都必须有效且相互关联

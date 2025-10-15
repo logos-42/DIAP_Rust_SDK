@@ -155,7 +155,7 @@ impl ZKPVerifier {
         let vk = VerifyingKey::<Bn254>::deserialize_uncompressed(&mut reader)
             .context("反序列化verifying key失败")?;
         
-        self.verifying_key = Some(PreparedVerifyingKey::from(vk));
+        self.verifying_key = Some(vk);
         log::info!("✓ Verifying key加载成功");
         
         Ok(())
