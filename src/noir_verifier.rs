@@ -142,16 +142,14 @@ impl NoirVerifier {
 /// 改进的Noir ZKP管理器
 pub struct ImprovedNoirZKPManager {
     verifier: NoirVerifier,
-    circuits_path: String,
 }
 
 impl ImprovedNoirZKPManager {
     /// 创建新的改进Noir ZKP管理器
     pub fn new(circuits_path: String) -> Self {
-        let verifier = NoirVerifier::new(circuits_path.clone());
+        let verifier = NoirVerifier::new(circuits_path);
         Self {
             verifier,
-            circuits_path,
         }
     }
 
