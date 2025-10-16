@@ -6,7 +6,7 @@
 
 **DIAP (Decentralized Intelligent Agent Protocol)** - 基于Noir零知识证明的去中心化智能体身份协议 Rust SDK
 
-> **🆕 v0.2.5 - 简化架构版**: 专注于Noir ZKP，移除冗余代码，提供完整的IPFS双向验证闭环
+> **🆕 v0.2.6 - 简化架构版**: 专注于Noir ZKP，移除冗余代码，提供完整的IPFS双向验证闭环
 
 ## 🎯 核心特性
 

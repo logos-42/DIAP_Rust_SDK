@@ -102,6 +102,8 @@ ark-crypto-primitives = "0.4"
 blake2 = "0.10"
 # Blake3哈希（用于Iroh数据验证）
 blake3 = "1.8"
+# n0-snafu（Iroh错误处理）
+n0-snafu = "0.2.1"
 
 [features]
 default = ["noir-zkp", "builtin-ipfs", "iroh"]

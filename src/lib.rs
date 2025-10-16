@@ -102,8 +102,8 @@ pub use libp2p_node::{
     LibP2PNode, NodeInfo
 };
 
-// Iroh P2P通信器（API研究中，暂时禁用）
-// pub mod iroh_communicator;
+// Iroh P2P通信器
+pub mod iroh_communicator;
 
 // 签名PeerID（隐私保护）
 pub use encrypted_peer_id::{
@@ -217,12 +217,12 @@ pub use iroh_node::{
     IrohConfig,
 };
 
-// Iroh P2P通信器（API研究中，暂时禁用）
-// pub use iroh_communicator::{
-//     IrohCommunicator,
-//     IrohMessage,
-//     IrohConfig as IrohCommConfig,
-// };
+// Iroh P2P通信器
+pub use iroh_communicator::{
+    IrohCommunicator,
+    IrohMessage,
+    IrohConfig as IrohCommConfig,
+};
 
 // ============ 常用类型重导出 ============
 pub use serde::{Deserialize, Serialize};
