@@ -222,6 +222,8 @@ pub use iroh_communicator::{
     IrohCommunicator,
     IrohMessage,
     IrohConfig as IrohCommConfig,
+    IrohMessageType,
+    IrohConnection,
 };
 
 // ============ 常用类型重导出 ============

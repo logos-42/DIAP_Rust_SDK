@@ -24,7 +24,7 @@ pub struct IrohConfig {
 /// Iroh节点（预留）
 #[cfg(feature = "iroh")]
 pub struct IrohNode {
-    config: IrohConfig,
+    _config: IrohConfig,
     // iroh_net的实际实现将在这里
 }
 
@@ -35,7 +35,7 @@ impl IrohNode {
         log::info!("🚀 创建Iroh节点: {}", config.node_name);
         log::warn!("⚠️  Iroh功能当前为预留状态");
         
-        Ok(Self { config })
+        Ok(Self { _config: config })
     }
     
     /// 启动节点
