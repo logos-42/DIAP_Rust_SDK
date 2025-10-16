@@ -21,7 +21,9 @@ pub mod did_builder;
 // libp2p身份
 pub mod libp2p_identity;
 pub mod libp2p_node;
-pub mod p2p_communicator;
+// 暂时禁用复杂的P2P网络功能，等待API稳定
+// pub mod libp2p_network;
+// pub mod p2p_communicator;
 
 // 签名PeerID（隐私保护）
 pub mod encrypted_peer_id;
@@ -39,6 +41,7 @@ pub mod did_cache;
 
 // IPFS Pubsub认证通讯
 pub mod pubsub_authenticator;
+
 
 // Noir ZKP集成（新版本）
 pub mod noir_zkp;
@@ -102,9 +105,17 @@ pub use libp2p_node::{
     LibP2PNode, NodeInfo
 };
 
-pub use p2p_communicator::{
-    P2PCommunicator, DIAPMessage, DIAPResponse
-};
+// 暂时禁用复杂的P2P网络功能导出
+// pub use libp2p_network::{
+//     DIAPNetworkManager,
+//     DIAPNetworkConfig,
+//     DIAPNetworkEvent,
+//     NetworkStats,
+// };
+
+// pub use p2p_communicator::{
+//     P2PCommunicator, DIAPMessage, DIAPResponse
+// };
 
 // 签名PeerID（隐私保护）
 pub use encrypted_peer_id::{
@@ -208,7 +219,9 @@ pub use pubsub_authenticator::{
     MessageVerification,
     TopicPolicy,
     TopicConfig,
+    PubSubMessageType,
 };
+
 
 // Iroh节点
 pub use iroh_node::{

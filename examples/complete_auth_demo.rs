@@ -193,6 +193,6 @@ fn print_auth_result(result: &AuthResult) {
     }
     
     if let Some(proof) = &result.proof {
-        println!("   证明长度: {} 字节", proof.proof.len());
+        println!("   证明长度: {} 字节", proof.len());
     }
 }

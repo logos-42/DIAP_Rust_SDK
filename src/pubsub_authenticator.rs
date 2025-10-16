@@ -13,14 +13,37 @@ use crate::key_manager::KeyPair;
 use crate::nonce_manager::NonceManager;
 use crate::did_cache::DIDCache;
 
+/// PubSub消息类型
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum PubSubMessageType {
+    /// 身份验证请求
+    AuthRequest,
+    /// 身份验证响应
+    AuthResponse,
+    /// 资源访问请求
+    ResourceRequest,
+    /// 资源访问响应
+    ResourceResponse,
+    /// 心跳消息
+    Heartbeat,
+    /// 自定义消息
+    Custom(String),
+}
+
 /// 认证的Pubsub消息
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AuthenticatedMessage {
     /// 消息ID
     pub message_id: String,
     
+    /// 消息类型
+    pub message_type: PubSubMessageType,
+    
     /// 发送者DID
     pub from_did: String,
+    
+    /// 接收者DID（可选，为空表示广播）
+    pub to_did: Option<String>,
     
     /// 发送者PeerID
     pub from_peer_id: String,
@@ -117,6 +140,12 @@ pub struct PubsubAuthenticator {
     
     /// 主题配置
     topic_configs: Arc<RwLock<HashMap<String, TopicConfig>>>,
+    
+    /// 订阅的主题列表
+    subscribed_topics: Arc<RwLock<Vec<String>>>,
+    
+    /// 消息统计
+    message_stats: Arc<RwLock<HashMap<String, u64>>>, // topic -> message_count
 }
 
 impl PubsubAuthenticator {
@@ -136,6 +165,8 @@ impl PubsubAuthenticator {
             peer_id: Arc::new(RwLock::new(None)),
             local_cid: Arc::new(RwLock::new(None)),
             topic_configs: Arc::new(RwLock::new(HashMap::new())),
+            subscribed_topics: Arc::new(RwLock::new(Vec::new())),
+            message_stats: Arc::new(RwLock::new(HashMap::new())),
         }
     }
     
@@ -170,7 +201,9 @@ impl PubsubAuthenticator {
     pub async fn create_authenticated_message(
         &self,
         topic: &str,
+        message_type: PubSubMessageType,
         content: &[u8],
+        to_did: Option<String>,
     ) -> Result<AuthenticatedMessage> {
         // 1. 检查本地身份
         let keypair = self.keypair.read().await
@@ -219,7 +252,9 @@ impl PubsubAuthenticator {
         // 6. 构造认证消息
         let message = AuthenticatedMessage {
             message_id: uuid::Uuid::new_v4().to_string(),
+            message_type,
             from_did: keypair.did.clone(),
+            to_did,
             from_peer_id: peer_id,
             did_cid: cid,
             topic: topic.to_string(),
@@ -417,6 +452,101 @@ impl PubsubAuthenticator {
     /// 获取nonce统计
     pub fn nonce_count(&self) -> usize {
         self.nonce_manager.count()
+    }
+    
+    /// 订阅主题
+    pub async fn subscribe_topic(&self, topic: &str) -> Result<()> {
+        let mut topics = self.subscribed_topics.write().await;
+        if !topics.contains(&topic.to_string()) {
+            topics.push(topic.to_string());
+            log::info!("✓ 订阅主题: {}", topic);
+        }
+        Ok(())
+    }
+    
+    /// 取消订阅主题
+    pub async fn unsubscribe_topic(&self, topic: &str) -> Result<()> {
+        let mut topics = self.subscribed_topics.write().await;
+        topics.retain(|t| t != topic);
+        log::info!("✓ 取消订阅主题: {}", topic);
+        Ok(())
+    }
+    
+    /// 获取订阅的主题列表
+    pub async fn get_subscribed_topics(&self) -> Vec<String> {
+        self.subscribed_topics.read().await.clone()
+    }
+    
+    /// 更新消息统计
+    pub async fn update_message_stats(&self, topic: &str) {
+        let mut stats = self.message_stats.write().await;
+        *stats.entry(topic.to_string()).or_insert(0) += 1;
+    }
+    
+    /// 获取消息统计
+    pub async fn get_message_stats(&self) -> HashMap<String, u64> {
+        self.message_stats.read().await.clone()
+    }
+    
+    /// 创建简化的认证消息（用于演示）
+    pub async fn create_simple_message(
+        &self,
+        topic: &str,
+        content: &str,
+    ) -> Result<AuthenticatedMessage> {
+        self.create_authenticated_message(
+            topic,
+            PubSubMessageType::Custom("simple_message".to_string()),
+            content.as_bytes(),
+            None,
+        ).await
+    }
+    
+    /// 创建身份验证请求消息
+    pub async fn create_auth_request(
+        &self,
+        topic: &str,
+        target_did: &str,
+        challenge: &str,
+    ) -> Result<AuthenticatedMessage> {
+        let content = format!("AUTH_REQUEST:{}:{}", target_did, challenge);
+        self.create_authenticated_message(
+            topic,
+            PubSubMessageType::AuthRequest,
+            content.as_bytes(),
+            Some(target_did.to_string()),
+        ).await
+    }
+    
+    /// 创建身份验证响应消息
+    pub async fn create_auth_response(
+        &self,
+        topic: &str,
+        target_did: &str,
+        response: &str,
+    ) -> Result<AuthenticatedMessage> {
+        let content = format!("AUTH_RESPONSE:{}:{}", target_did, response);
+        self.create_authenticated_message(
+            topic,
+            PubSubMessageType::AuthResponse,
+            content.as_bytes(),
+            Some(target_did.to_string()),
+        ).await
+    }
+    
+    /// 创建心跳消息
+    pub async fn create_heartbeat(&self, topic: &str) -> Result<AuthenticatedMessage> {
+        let content = format!("HEARTBEAT:{}", std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs());
+        
+        self.create_authenticated_message(
+            topic,
+            PubSubMessageType::Heartbeat,
+            content.as_bytes(),
+            None,
+        ).await
     }
 }
 

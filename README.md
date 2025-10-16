@@ -200,6 +200,120 @@ async fn main() -> anyhow::Result<()> {
 }
 ```
 
+### PubSub通信示例
+
+```rust
+use diap_rs_sdk::*;
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    env_logger::init();
+    
+    // 1. 创建身份和网络管理器
+    let keypair = KeyPair::generate()?;
+    let libp2p_identity = LibP2PIdentity::generate()?;
+    let peer_id = *libp2p_identity.peer_id();
+    
+    // 2. 初始化IPFS和身份管理器
+    let (ipfs_client, _ipfs_manager) = IpfsClient::new_builtin_only(None, 30).await?;
+    let identity_manager = IdentityManager::new(ipfs_client.clone())?;
+    
+    // 3. 创建PubSub认证器
+    let pubsub_authenticator = PubsubAuthenticator::new(identity_manager, None, None);
+    pubsub_authenticator.set_local_identity(keypair.clone(), peer_id, "temp_cid".to_string()).await?;
+    
+    // 4. 创建网络管理器
+    let network_config = DIAPNetworkConfig::default();
+    let mut network_manager = DIAPNetworkManager::new(
+        libp2p_identity,
+        network_config,
+        Some(pubsub_authenticator),
+    ).await?;
+    
+    // 5. 启动网络并订阅主题
+    network_manager.start().await?;
+    network_manager.subscribe_topic("diap-agent-announcements")?;
+    
+    // 6. 发布包含PubSub信息的DID到IPFS
+    let mut did_builder = DIDBuilder::new(ipfs_client);
+    let publish_result = did_builder.create_and_publish_with_pubsub(
+        &keypair,
+        &peer_id,
+        vec!["diap-agent-announcements".to_string()],
+        network_manager.listeners().iter().map(|addr| addr.to_string()).collect(),
+    ).await?;
+    
+    println!("✅ DID已发布: {}", publish_result.cid);
+    
+    // 7. 发布认证消息
+    let message = "Hello from DIAP agent!";
+    let message_id = network_manager.publish_message("diap-agent-announcements", message.as_bytes()).await?;
+    println!("📤 消息已发布: {:?}", message_id);
+    
+    // 8. 运行事件循环
+    network_manager.handle_events().await?;
+    
+    Ok(())
+}
+```
+
+### P2P点对点通信示例
+
+```rust
+use diap_rs_sdk::*;
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    env_logger::init();
+    
+    // 1. 创建两个节点的身份
+    let (node1_keypair, node1_identity, node1_peer_id) = create_node_identity("节点1")?;
+    let (node2_keypair, node2_identity, node2_peer_id) = create_node_identity("节点2")?;
+    
+    // 2. 创建P2P通信器
+    let mut node1_communicator = P2PCommunicator::new(node1_identity, node1_keypair).await?;
+    let mut node2_communicator = P2PCommunicator::new(node2_identity, node2_keypair).await?;
+    
+    // 3. 启动监听
+    node1_communicator.listen("/ip4/0.0.0.0/tcp/5001")?;
+    node2_communicator.listen("/ip4/0.0.0.0/tcp/5002")?;
+    
+    // 4. 连接两个节点
+    let node1_listeners = node1_communicator.listeners();
+    if let Some(node1_addr) = node1_listeners.first() {
+        node2_communicator.dial(node1_peer_id, node1_addr.clone())?;
+    }
+    
+    // 5. 启动事件处理
+    let node1_handle = tokio::spawn(async move {
+        node1_communicator.handle_events().await.unwrap();
+    });
+    
+    let node2_handle = tokio::spawn(async move {
+        node2_communicator.handle_events().await.unwrap();
+    });
+    
+    // 6. 发送请求
+    let request_id = node2_communicator.send_request(
+        node1_peer_id,
+        "ping",
+        serde_json::json!({"message": "Hello"}),
+        &node1_communicator.local_did(),
+    ).await?;
+    
+    println!("✅ 请求已发送: {}", request_id);
+    
+    // 7. 等待响应
+    tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+    
+    // 8. 清理
+    node1_handle.abort();
+    node2_handle.abort();
+    
+    Ok(())
+}
+```
+
 ### 运行示例
 
 #### Noir智能体演示
@@ -221,6 +335,21 @@ cargo run --example noir_agent_demo
 ```bash
 # 运行完整的IPFS双向验证演示
 cargo run --example ipfs_bidirectional_verification_demo
+```
+
+#### PubSub通信演示
+```bash
+# 运行单个节点的PubSub演示
+cargo run --example pubsub_demo
+
+# 运行两个节点的PubSub通信演示
+cargo run --example two_node_pubsub_demo
+```
+
+#### P2P点对点通信演示
+```bash
+# 运行两个节点的P2P请求-响应通信演示
+cargo run --example p2p_communication_demo
 ```
 
 ## 📦 核心模块
@@ -257,7 +386,21 @@ cargo run --example ipfs_bidirectional_verification_demo
 - **批量验证**: 支持多个智能体同时验证
 - **IPFS集成**: 基于IPFS网络的去中心化验证
 
-### 7. 身份管理器 (`identity_manager`)
+### 7. libp2p网络通信 (`libp2p_network`)
+- **DIAPNetworkManager**: 完整的libp2p网络管理器
+- **Gossipsub集成**: 支持PubSub消息传播
+- **节点发现**: mDNS和Kademlia DHT支持
+- **认证消息**: 集成ZKP+签名验证的消息管道
+- **DID集成**: PubSub信息自动写入DID文档并上传IPFS
+
+### 8. P2P点对点通信 (`p2p_communicator`)
+- **P2PCommunicator**: 完整的点对点通信实现
+- **请求-响应模式**: 支持可靠的请求-响应通信
+- **消息签名**: 所有消息和响应都经过Ed25519签名
+- **防重放攻击**: 使用nonce和时间戳防止重放攻击
+- **协议支持**: 支持ping、get_info等内置协议
+
+### 9. 身份管理器 (`identity_manager`)
 - 统一的注册、验证接口
 - 简化的API设计
 - 无需预先生成ZKP密钥
@@ -275,6 +418,9 @@ cargo run --example ipfs_bidirectional_verification_demo
 | Noir ZKP证明验证 | 3-5ms | - |
 | 双向验证完成 | 6-14s (首次) | - |
 | 双向验证完成 | 200ms (缓存) | - |
+| P2P请求-响应 | 10-50ms | ~1KB |
+| PubSub消息传播 | 100-500ms | ~2KB |
+| 消息签名验证 | <1ms | - |
 
 ## 🔧 技术栈
 

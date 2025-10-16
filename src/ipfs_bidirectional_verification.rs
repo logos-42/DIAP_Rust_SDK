@@ -507,19 +507,34 @@ impl IpfsBidirectionalVerificationManager {
         }
     }
     
+    /// 获取IPFS客户端（用于共享访问）
+    pub fn get_ipfs_client(&self) -> IpfsClient {
+        self.ipfs_client.clone()
+    }
+    
     // 私有辅助方法
     
     /// 创建DID文档
     fn create_did_document(&self, agent_info: &AgentInfo, keypair: &KeyPair) -> Result<DIDDocument> {
+        // 创建验证方法
+        let verification_method = crate::VerificationMethod {
+            id: format!("{}#key-1", keypair.did),
+            vm_type: "Ed25519VerificationKey2020".to_string(),
+            controller: keypair.did.clone(),
+            public_key_multibase: format!("z{}", bs58::encode(&keypair.public_key).into_string()),
+        };
+        
         Ok(DIDDocument {
             context: vec!["https://www.w3.org/ns/did/v1".to_string()],
             id: keypair.did.clone(),
-            verification_method: vec![],
-            authentication: vec![],
+            verification_method: vec![verification_method.clone()],
+            authentication: vec![verification_method.id.clone()],
             service: Some(vec![crate::Service {
                 id: format!("{}#service", keypair.did),
                 service_type: "DIAP Agent Service".to_string(),
                 service_endpoint: format!("https://{}.example.com", agent_info.name.to_lowercase()).into(),
+                pubsub_topics: None,
+                network_addresses: None,
             }]),
             created: chrono::Utc::now().to_rfc3339(),
         })

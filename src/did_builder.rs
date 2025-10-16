@@ -58,6 +58,14 @@ pub struct Service {
     
     #[serde(rename = "serviceEndpoint")]
     pub service_endpoint: serde_json::Value,
+    
+    /// PubSub主题列表
+    #[serde(rename = "pubsubTopics", skip_serializing_if = "Option::is_none")]
+    pub pubsub_topics: Option<Vec<String>>,
+    
+    /// 网络监听地址
+    #[serde(rename = "networkAddresses", skip_serializing_if = "Option::is_none")]
+    pub network_addresses: Option<Vec<String>>,
 }
 
 /// DID构建器
@@ -100,9 +108,77 @@ impl DIDBuilder {
             id: format!("#{}", service_type.to_lowercase()),
             service_type: service_type.to_string(),
             service_endpoint: endpoint,
+            pubsub_topics: None,
+            network_addresses: None,
         };
         self.services.push(service);
         self
+    }
+    
+    /// 添加PubSub服务端点
+    pub fn add_pubsub_service(
+        &mut self, 
+        service_type: &str, 
+        endpoint: serde_json::Value,
+        pubsub_topics: Vec<String>,
+        network_addresses: Vec<String>,
+    ) -> &mut Self {
+        let service = Service {
+            id: format!("#{}", service_type.to_lowercase()),
+            service_type: service_type.to_string(),
+            service_endpoint: endpoint,
+            pubsub_topics: Some(pubsub_topics),
+            network_addresses: Some(network_addresses),
+        };
+        self.services.push(service);
+        self
+    }
+    
+    /// 创建并发布包含PubSub信息的DID
+    pub async fn create_and_publish_with_pubsub(
+        &self,
+        keypair: &KeyPair,
+        libp2p_peer_id: &PeerId,
+        pubsub_topics: Vec<String>,
+        network_addresses: Vec<String>,
+    ) -> Result<DIDPublishResult> {
+        log::info!("🚀 开始DID发布流程（包含PubSub信息）");
+        
+        // 步骤1: 加密PeerID
+        log::info!("步骤1: 加密libp2p PeerID");
+        let signing_key = SigningKey::from_bytes(&keypair.private_key);
+        let encrypted_peer_id = encrypt_peer_id(&signing_key, libp2p_peer_id)?;
+        log::info!("✓ PeerID已加密");
+        
+        // 步骤2: 构建包含PubSub信息的DID文档
+        log::info!("步骤2: 构建包含PubSub信息的DID文档");
+        let did_doc = self.build_did_document_with_pubsub(
+            keypair, 
+            &encrypted_peer_id, 
+            pubsub_topics, 
+            network_addresses
+        )?;
+        log::info!("✓ DID文档构建完成");
+        log::info!("  DID: {}", did_doc.id);
+        
+        // 步骤3: 上传到IPFS
+        log::info!("步骤3: 上传DID文档到IPFS");
+        let upload_result = self.upload_did_document(&did_doc).await?;
+        log::info!("✓ 上传完成");
+        log::info!("  CID: {}", upload_result.cid);
+        
+        log::info!("✅ DID发布成功（包含PubSub信息）");
+        log::info!("  DID: {}", keypair.did);
+        log::info!("  CID: {}", upload_result.cid);
+        log::info!("  PubSub主题: {:?}", did_doc.service.as_ref().and_then(|s| s.first().and_then(|svc| svc.pubsub_topics.as_ref())));
+        log::info!("  网络地址: {:?}", did_doc.service.as_ref().and_then(|s| s.first().and_then(|svc| svc.network_addresses.as_ref())));
+        
+        Ok(DIDPublishResult {
+            did: keypair.did.clone(),
+            cid: upload_result.cid,
+            did_document: did_doc,
+            encrypted_peer_id: encrypted_peer_id,
+        })
     }
     
     /// 创建并发布DID（简化流程：一次上传）
@@ -172,6 +248,57 @@ impl DIDBuilder {
                 "signature": general_purpose::STANDARD.encode(&encrypted_peer_id.signature),
                 "method": encrypted_peer_id.method,
             }),
+            pubsub_topics: None,
+            network_addresses: None,
+        };
+        services.insert(0, libp2p_service);
+        
+        Ok(DIDDocument {
+            context: vec![
+                "https://www.w3.org/ns/did/v1".to_string(),
+                "https://w3id.org/security/suites/ed25519-2020/v1".to_string(),
+            ],
+            id: keypair.did.clone(),
+            verification_method: vec![verification_method],
+            authentication: vec![format!("{}#key-1", keypair.did)],
+            service: if services.is_empty() { None } else { Some(services) },
+            created: chrono::Utc::now().to_rfc3339(),
+        })
+    }
+    
+    /// 构建包含PubSub信息的DID文档
+    fn build_did_document_with_pubsub(
+        &self,
+        keypair: &KeyPair,
+        encrypted_peer_id: &EncryptedPeerID,
+        pubsub_topics: Vec<String>,
+        network_addresses: Vec<String>,
+    ) -> Result<DIDDocument> {
+        // 构建验证方法
+        let verification_method = VerificationMethod {
+            id: format!("{}#key-1", keypair.did),
+            vm_type: "Ed25519VerificationKey2020".to_string(),
+            controller: keypair.did.clone(),
+            public_key_multibase: format!("z{}", bs58::encode(&keypair.public_key).into_string()),
+        };
+        
+        // 构建服务列表
+        let mut services = self.services.clone();
+        
+        // 添加libp2p服务（包含PubSub信息）
+        let libp2p_service = Service {
+            id: format!("{}#libp2p", keypair.did),
+            service_type: "libp2p".to_string(),
+            service_endpoint: serde_json::json!({
+                "ciphertext": general_purpose::STANDARD.encode(&encrypted_peer_id.ciphertext),
+                "nonce": general_purpose::STANDARD.encode(&encrypted_peer_id.nonce),
+                "signature": general_purpose::STANDARD.encode(&encrypted_peer_id.signature),
+                "method": encrypted_peer_id.method,
+                "protocol": "libp2p",
+                "version": "1.0.0"
+            }),
+            pubsub_topics: Some(pubsub_topics),
+            network_addresses: Some(network_addresses),
         };
         services.insert(0, libp2p_service);
         

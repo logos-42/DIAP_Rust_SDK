@@ -38,13 +38,17 @@ aes-gcm = "0.10"  # 私钥加密
 cid = "0.10"
 multihash = "0.18"
 
-# libp2p核心（简化版）
+# libp2p核心（完整版）
 libp2p = { version = "0.53", features = [
     "tcp",                # TCP传输
     "noise",              # Noise协议加密
     "yamux",              # Yamux多路复用
     "identify",           # 节点识别
     "ping",               # Ping协议
+    "gossipsub",          # Gossipsub协议
+    "kad",                # Kademlia DHT
+    "mdns",               # mDNS节点发现
+    "request-response",   # 请求-响应协议
     "tokio",              # Tokio运行时
     "macros",             # NetworkBehaviour派生宏
 ] }
