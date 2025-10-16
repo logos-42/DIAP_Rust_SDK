@@ -21,9 +21,6 @@ pub mod did_builder;
 // libp2p身份
 pub mod libp2p_identity;
 pub mod libp2p_node;
-// 暂时禁用复杂的P2P网络功能，等待API稳定
-// pub mod libp2p_network;
-// pub mod p2p_communicator;
 
 // 签名PeerID（隐私保护）
 pub mod encrypted_peer_id;
@@ -105,17 +102,8 @@ pub use libp2p_node::{
     LibP2PNode, NodeInfo
 };
 
-// 暂时禁用复杂的P2P网络功能导出
-// pub use libp2p_network::{
-//     DIAPNetworkManager,
-//     DIAPNetworkConfig,
-//     DIAPNetworkEvent,
-//     NetworkStats,
-// };
-
-// pub use p2p_communicator::{
-//     P2PCommunicator, DIAPMessage, DIAPResponse
-// };
+// Iroh P2P通信器（API研究中，暂时禁用）
+// pub mod iroh_communicator;
 
 // 签名PeerID（隐私保护）
 pub use encrypted_peer_id::{
@@ -228,6 +216,13 @@ pub use iroh_node::{
     IrohNode,
     IrohConfig,
 };
+
+// Iroh P2P通信器（API研究中，暂时禁用）
+// pub use iroh_communicator::{
+//     IrohCommunicator,
+//     IrohMessage,
+//     IrohConfig as IrohCommConfig,
+// };
 
 // ============ 常用类型重导出 ============
 pub use serde::{Deserialize, Serialize};

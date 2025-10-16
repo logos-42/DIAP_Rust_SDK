@@ -54,6 +54,10 @@ libp2p = { version = "0.53", features = [
 ] }
 libp2p-identity = { version = "0.2", features = ["ed25519"] }
 
+# Iroh P2P通信（真实实现）
+iroh = { version = "0.93.2", features = ["default", "metrics"] }
+iroh-bytes = "0.15.0"
+
 # 网络和系统（简化）
 chrono = { version = "0.4", features = ["serde"] }
 
@@ -96,13 +100,15 @@ ark-crypto-primitives = "0.4"
 
 # Blake2哈希（用于ZKP电路）
 blake2 = "0.10"
+# Blake3哈希（用于Iroh数据验证）
+blake3 = "1.8"
 
 [features]
-default = ["noir-zkp", "builtin-ipfs"]
+default = ["noir-zkp", "builtin-ipfs", "iroh"]
 noir-zkp = []  # 启用Noir ZKP支持（默认）
 arkworks-zkp = []  # 启用arkworks ZKP支持（向后兼容）
 builtin-ipfs = []  # 启用内置IPFS节点支持（默认）
-iroh = []  # 启用Iroh支持（预留功能）
+iroh = []  # 启用Iroh P2P通信支持（默认）
 
 [dev-dependencies]
 tokio-test = "0.4"
