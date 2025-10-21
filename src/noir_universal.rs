@@ -87,13 +87,12 @@ impl UniversalNoirManager {
     async fn select_best_backend() -> Result<NoirBackend> {
         // 优先级：嵌入 > 外部 > arkworks > 简化
         
-        #[cfg(feature = "embedded-noir")]
-        {
+        if cfg!(feature = "embedded-noir") {
             log::info!("✅ 嵌入Noir后端可用");
             return Ok(NoirBackend::Embedded);
         }
         
-        #[cfg(all(feature = "external-noir", not(feature = "embedded-noir")))]
+        #[cfg(feature = "external-noir")]
         {
             if Self::check_external_noir_available().await {
                 log::info!("✅ 外部Noir后端可用");
@@ -101,8 +100,7 @@ impl UniversalNoirManager {
             }
         }
         
-        #[cfg(all(feature = "arkworks-zkp", not(feature = "embedded-noir"), not(feature = "external-noir")))]
-        {
+        if cfg!(feature = "arkworks-zkp") {
             log::info!("✅ Arkworks ZKP后端可用");
             return Ok(NoirBackend::Arkworks);
         }
