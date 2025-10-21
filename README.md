@@ -1,6 +1,7 @@
 # DIAP Rust SDK
 
 [![Crates.io](https://img.shields.io/crates/v/diap-rs-sdk.svg)](https://crates.io/crates/diap-rs-sdk)
+[![Documentation](https://docs.rs/diap-rs-sdk/badge.svg)](https://docs.rs/diap-rs-sdk)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 基于零知识证明的去中心化智能体身份协议 Rust SDK，支持跨平台零依赖部署。
