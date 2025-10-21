@@ -56,34 +56,25 @@ pub fn ensure_zkp_keys_exist(pk_path: &str, vk_path: &str) -> Result<()> {
     Ok(())
 }
 
-/// 从Noir电路生成密钥
-/// 使用nargo命令生成真实的密钥
+/// 从Noir电路生成密钥（跨平台版本）
+/// 自动检测环境并选择合适的执行方式
 pub async fn generate_noir_keys(circuit_path: &str, pk_path: &str, vk_path: &str) -> Result<()> {
     log::info!("🔧 尝试从Noir电路生成密钥...");
     
-    // 检查nargo是否可用
-    let nargo_check = tokio::process::Command::new("wsl")
-        .args(&["-d", "Ubuntu", "--", "bash", "-c", "which nargo"])
-        .output()
-        .await;
+    // 获取电路目录
+    let circuit_dir = Path::new(circuit_path).parent()
+        .context("无法获取电路目录")?;
     
-    if nargo_check.is_err() {
-        log::warn!("⚠️  WSL或nargo不可用，使用简化密钥生成");
+    // 检查nargo是否可用（跨平台检测）
+    let nargo_available = check_nargo_available().await;
+    
+    if !nargo_available {
+        log::warn!("⚠️  nargo不可用，使用简化密钥生成");
         return ensure_zkp_keys_exist(pk_path, vk_path);
     }
     
-    // 尝试使用nargo生成密钥
-    let _circuit_dir = Path::new(circuit_path).parent()
-        .context("无法获取电路目录")?;
-    
-    let wsl_circuit_path = format!("/mnt/d/AI/ANP/ANP-Rust-SDK/noir_circuits");
-    
-    // 编译电路
-    let compile_result = tokio::process::Command::new("wsl")
-        .args(&["-d", "Ubuntu", "--", "bash", "-c", 
-                &format!("cd {} && nargo compile", wsl_circuit_path)])
-        .output()
-        .await;
+    // 编译电路（跨平台）
+    let compile_result = compile_noir_circuit(circuit_dir).await;
     
     if compile_result.is_err() {
         log::warn!("⚠️  Noir编译失败，使用简化密钥生成");
@@ -93,25 +84,17 @@ pub async fn generate_noir_keys(circuit_path: &str, pk_path: &str, vk_path: &str
     log::info!("✅ Noir电路编译成功，生成密钥文件");
     
     // 复制生成的ACIR文件作为密钥
-    let acir_file = format!("{}/target/noir_circuits.json", wsl_circuit_path);
-    let wsl_pk_path = format!("/mnt/d/AI/ANP/ANP-Rust-SDK/{}", pk_path);
-    let wsl_vk_path = format!("/mnt/d/AI/ANP/ANP-Rust-SDK/{}", vk_path);
+    let acir_file = circuit_dir.join("target").join("noir_circuits.json");
     
-    // 复制ACIR作为proving key
-    let copy_pk = tokio::process::Command::new("wsl")
-        .args(&["-d", "Ubuntu", "--", "bash", "-c", 
-                &format!("cp {} {}", acir_file, wsl_pk_path)])
-        .output()
-        .await;
+    if !acir_file.exists() {
+        log::warn!("⚠️  ACIR文件不存在，使用简化密钥生成");
+        return ensure_zkp_keys_exist(pk_path, vk_path);
+    }
     
-    // 复制ACIR作为verification key
-    let copy_vk = tokio::process::Command::new("wsl")
-        .args(&["-d", "Ubuntu", "--", "bash", "-c", 
-                &format!("cp {} {}", acir_file, wsl_vk_path)])
-        .output()
-        .await;
+    // 复制ACIR作为密钥文件
+    let copy_result = copy_acir_as_keys(&acir_file, pk_path, vk_path).await;
     
-    if copy_pk.is_ok() && copy_vk.is_ok() {
+    if copy_result.is_ok() {
         log::info!("✅ 从Noir电路成功生成密钥文件");
         log::info!("   Proving Key: {}", pk_path);
         log::info!("   Verification Key: {}", vk_path);
@@ -120,6 +103,99 @@ pub async fn generate_noir_keys(circuit_path: &str, pk_path: &str, vk_path: &str
         log::warn!("⚠️  复制Noir密钥文件失败，使用简化密钥生成");
         ensure_zkp_keys_exist(pk_path, vk_path)
     }
+}
+
+/// 检查nargo是否可用（跨平台）
+async fn check_nargo_available() -> bool {
+    // 首先尝试直接调用nargo
+    if let Ok(output) = tokio::process::Command::new("nargo")
+        .arg("--version")
+        .output()
+        .await
+    {
+        if output.status.success() {
+            log::info!("✅ 检测到nargo (直接调用)");
+            return true;
+        }
+    }
+    
+    // 在Windows上，尝试WSL作为fallback
+    #[cfg(target_os = "windows")]
+    {
+        if let Ok(output) = tokio::process::Command::new("wsl")
+            .args(&["-d", "Ubuntu", "--", "bash", "-c", "which nargo"])
+            .output()
+            .await
+        {
+            if output.status.success() {
+                log::info!("✅ 检测到nargo (WSL)");
+                return true;
+            }
+        }
+    }
+    
+    log::warn!("⚠️  nargo不可用");
+    false
+}
+
+/// 编译Noir电路（跨平台）
+async fn compile_noir_circuit(circuit_dir: &Path) -> Result<()> {
+    // 首先尝试直接调用nargo
+    if let Ok(output) = tokio::process::Command::new("nargo")
+        .arg("compile")
+        .current_dir(circuit_dir)
+        .output()
+        .await
+    {
+        if output.status.success() {
+            log::info!("✅ 电路编译成功 (直接调用)");
+            return Ok(());
+        }
+    }
+    
+    // 在Windows上，尝试WSL作为fallback
+    #[cfg(target_os = "windows")]
+    {
+        let wsl_circuit_path = format!("/mnt/{}/{}", 
+            circuit_dir.to_string_lossy().chars().next().unwrap().to_lowercase(),
+            circuit_dir.to_string_lossy()[2..].replace('\\', "/"));
+        
+        if let Ok(output) = tokio::process::Command::new("wsl")
+            .args(&["-d", "Ubuntu", "--", "bash", "-c", 
+                    &format!("cd {} && nargo compile", wsl_circuit_path)])
+            .output()
+            .await
+        {
+            if output.status.success() {
+                log::info!("✅ 电路编译成功 (WSL)");
+                return Ok(());
+            }
+        }
+    }
+    
+    Err(anyhow::anyhow!("Noir电路编译失败"))
+}
+
+/// 复制ACIR文件作为密钥文件
+async fn copy_acir_as_keys(acir_file: &Path, pk_path: &str, vk_path: &str) -> Result<()> {
+    // 确保目标目录存在
+    if let Some(parent) = Path::new(pk_path).parent() {
+        std::fs::create_dir_all(parent).context("创建密钥目录失败")?;
+    }
+    
+    // 读取ACIR文件
+    let acir_data = std::fs::read(acir_file)
+        .context("读取ACIR文件失败")?;
+    
+    // 复制ACIR作为proving key
+    std::fs::write(pk_path, &acir_data)
+        .context("保存proving key失败")?;
+    
+    // 复制ACIR作为verification key
+    std::fs::write(vk_path, &acir_data)
+        .context("保存verification key失败")?;
+    
+    Ok(())
 }
 
 #[cfg(test)]

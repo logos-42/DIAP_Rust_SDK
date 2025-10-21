@@ -3,7 +3,7 @@
 
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
-use std::process::Command;
+// use std::process::Command; // 已移除，使用跨平台实现
 use tokio::fs;
 
 /// Noir验证结果
@@ -48,19 +48,10 @@ impl NoirVerifier {
         fs::write(&inputs_file, inputs_json).await
             .context("写入公共输入文件失败")?;
         
-        // 2. 执行Noir验证命令
+        // 2. 执行Noir验证命令（跨平台）
         // 注意：nargo verify需要proof文件和public inputs文件
         // 这里我们使用nargo execute来验证，因为proof验证需要更复杂的设置
-        let output = Command::new("wsl")
-            .args([
-                "-d", "Ubuntu",
-                "--", "bash", "-c",
-                &format!(
-                    "cd {} && nargo execute",
-                    self.circuits_path
-                )
-            ])
-            .output()
+        let output = self.execute_noir_command("nargo execute").await
             .context("执行Noir验证命令失败")?;
         
         let verification_time = start_time.elapsed().as_millis() as u64;
@@ -121,20 +112,84 @@ impl NoirVerifier {
         })
     }
 
-    /// 检查Noir环境是否可用
+    /// 检查Noir环境是否可用（跨平台）
     pub async fn check_noir_available(&self) -> bool {
-        let output = tokio::process::Command::new("wsl")
-            .args([
-                "-d", "Ubuntu",
-                "--", "bash", "-c",
-                "which nargo && nargo --version"
-            ])
+        // 首先尝试直接调用nargo
+        if let Ok(output) = tokio::process::Command::new("nargo")
+            .arg("--version")
             .output()
-            .await;
+            .await
+        {
+            if output.status.success() {
+                return true;
+            }
+        }
         
-        match output {
-            Ok(output) => output.status.success(),
-            Err(_) => false,
+        // 在Windows上，尝试WSL作为fallback
+        #[cfg(target_os = "windows")]
+        {
+            if let Ok(output) = tokio::process::Command::new("wsl")
+                .args([
+                    "-d", "Ubuntu",
+                    "--", "bash", "-c",
+                    "which nargo && nargo --version"
+                ])
+                .output()
+                .await
+            {
+                return output.status.success();
+            }
+        }
+        
+        false
+    }
+    
+    /// 执行Noir命令（跨平台）
+    async fn execute_noir_command(&self, command: &str) -> Result<std::process::Output> {
+        // 首先尝试直接调用nargo
+        if let Ok(output) = tokio::process::Command::new("nargo")
+            .arg(command.split_whitespace().nth(1).unwrap_or(""))
+            .current_dir(&self.circuits_path)
+            .output()
+            .await
+        {
+            if output.status.success() {
+                return Ok(output);
+            }
+        }
+        
+        // 在Windows上，尝试WSL作为fallback
+        #[cfg(target_os = "windows")]
+        {
+            let wsl_circuit_path = self.convert_to_wsl_path(std::path::Path::new(&self.circuits_path));
+            if let Ok(output) = tokio::process::Command::new("wsl")
+                .args([
+                    "-d", "Ubuntu",
+                    "--", "bash", "-c",
+                    &format!("cd {} && {}", wsl_circuit_path, command)
+                ])
+                .output()
+                .await
+            {
+                if output.status.success() {
+                    return Ok(output);
+                }
+            }
+        }
+        
+        Err(anyhow::anyhow!("Noir命令执行失败"))
+    }
+    
+    /// 转换Windows路径为WSL路径
+    #[cfg(target_os = "windows")]
+    fn convert_to_wsl_path(&self, path: &std::path::Path) -> String {
+        let path_str = path.to_string_lossy();
+        if path_str.len() >= 2 && &path_str[1..2] == ":" {
+            format!("/mnt/{}/{}", 
+                path_str.chars().next().unwrap().to_lowercase(),
+                &path_str[2..].replace('\\', "/"))
+        } else {
+            path_str.to_string()
         }
     }
 }

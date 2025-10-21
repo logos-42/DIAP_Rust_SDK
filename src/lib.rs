@@ -116,6 +116,13 @@ pub use encrypted_peer_id::{
 
 // ZKP模块 (基于Noir)
 
+// 嵌入Noir电路模块
+#[cfg(feature = "embedded-noir")]
+pub mod noir_embedded;
+
+// 通用Noir管理器
+pub mod noir_universal;
+
 // Noir ZKP集成
 pub use noir_zkp::{
     NoirZKPManager,
@@ -130,6 +137,23 @@ pub use noir_verifier::{
     NoirVerifier,
     NoirVerificationResult,
     ImprovedNoirZKPManager,
+};
+
+// 导出通用管理器
+pub use noir_universal::{
+    UniversalNoirManager,
+    NoirBackend,
+    BackendInfo,
+    PerformanceStats,
+};
+
+// 导出嵌入模块（如果启用）
+#[cfg(feature = "embedded-noir")]
+pub use noir_embedded::{
+    EmbeddedNoirZKPManager,
+    EmbeddedCircuit,
+    CircuitMetadata,
+    CacheStats as EmbeddedCacheStats,
 };
 
 
