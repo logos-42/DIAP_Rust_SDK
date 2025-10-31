@@ -71,6 +71,8 @@ impl IpfsClient {
     ) -> Self {
         let client = Client::builder()
             .timeout(Duration::from_secs(timeout_seconds))
+            .no_proxy() // 避免受系统代理影响导致本地API出现 502/403
+            .http1_only() // 与 Kubo 本地 API 更稳定
             .build()
             .expect("无法创建HTTP客户端");
         
@@ -123,36 +125,19 @@ impl IpfsClient {
     }
     
     /// 上传内容到IPFS
-    /// 优先使用远程API节点，然后回退到Pinata
+    /// 如果配置了远程API节点，优先且只使用远程节点（失败则返回具体错误，不再回退）
     pub async fn upload(&self, content: &str, name: &str) -> Result<IpfsUploadResult> {
-        // 优先尝试远程API节点
         if let Some(ref api_config) = self.api_config {
-            match self.upload_to_remote_api(content, name, api_config).await {
-                Ok(result) => {
-                    log::info!("成功上传到远程IPFS节点: {}", result.cid);
-                    return Ok(result);
-                }
-                Err(e) => {
-                    log::warn!("远程IPFS节点上传失败: {}, 尝试Pinata", e);
-                }
-            }
+            // 如果配置了远程API，失败时直接返回详细错误
+            let result = self.upload_to_remote_api(content, name, api_config).await?;
+            return Ok(result);
         }
-        
-        // 回退到Pinata
+        // 未配置远程API时，尝试Pinata（如果存在）
         if let Some(ref pinata) = self.pinata_config {
-            match self.upload_to_pinata(content, name, pinata).await {
-                Ok(result) => {
-                    log::info!("成功上传到Pinata: {}", result.cid);
-                    return Ok(result);
-                }
-                Err(e) => {
-                    log::error!("Pinata上传失败: {}", e);
-                    anyhow::bail!("所有IPFS上传方式都失败");
-                }
-            }
+            let result = self.upload_to_pinata(content, name, pinata).await?;
+            return Ok(result);
         }
-        
-        anyhow::bail!("未配置任何IPFS上传方式。请提供远程IPFS节点API或Pinata凭据")
+        anyhow::bail!("未配置任何IPFS上传方式：缺少远程API或Pinata凭据")
     }
     
     /// 上传到远程IPFS API节点
@@ -164,21 +149,29 @@ impl IpfsClient {
     ) -> Result<IpfsUploadResult> {
         use reqwest::multipart;
         
-        let form = multipart::Form::new()
-            .text("pin", "true")
-            .part("file", multipart::Part::text(content.to_string()).file_name(name.to_string()));
+        // 使用bytes形式构造multipart，与 curl -F 行为等价
+        let part = multipart::Part::bytes(content.as_bytes().to_vec())
+            .file_name(name.to_string())
+            .mime_str("application/json").unwrap();
+        let form = multipart::Form::new().part("file", part);
         
-        let url = format!("{}/api/v0/add", config.api_url);
+        // 将 pin=true 放到查询参数，避免作为表单字段被某些代理屏蔽
+        let url = format!("{}/api/v0/add?pin=true", config.api_url);
         
         let response = self.client
             .post(&url)
+            .header("Expect", "")
+            .header("User-Agent", "diap-rs-sdk/0.2")
+            .header("Connection", "close")
             .multipart(form)
             .send()
             .await
-            .context("发送上传请求失败")?;
+            .context(format!("发送上传请求失败: {}", url))?;
         
         if !response.status().is_success() {
-            anyhow::bail!("上传失败: {}", response.status());
+            let status = response.status();
+            let text = response.text().await.unwrap_or_default();
+            anyhow::bail!("上传失败: {} - {}", status, text);
         }
         
         let result: serde_json::Value = response.json().await?;

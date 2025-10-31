@@ -3,6 +3,7 @@ use diap_rs_sdk::{
 };
 use std::time::Instant;
 use anyhow::Result;
+use std::env;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -11,26 +12,41 @@ async fn main() -> Result<()> {
     println!("🚀 完整智能体认证闭环演示");
     println!("==========================================");
     
-    // 初始化认证管理器
+    // 读取CLI/ENV参数
+    let args: Vec<String> = std::env::args().collect();
+    let mut api_url_cli: Option<String> = None;
+    let mut gateway_url_cli: Option<String> = None;
+    let mut i = 1;
+    while i + 1 < args.len() {
+        match args[i].as_str() {
+            "--api-url" => { api_url_cli = Some(args[i+1].clone()); i += 2; }
+            "--gateway-url" => { gateway_url_cli = Some(args[i+1].clone()); i += 2; }
+            _ => { i += 1; }
+        }
+    }
+    let api_url = api_url_cli
+        .or_else(|| env::var("DIAP_IPFS_API_URL").ok())
+        .unwrap_or_else(|| "http://127.0.0.1:5001".to_string());
+    let gateway_url = gateway_url_cli
+        .or_else(|| env::var("DIAP_IPFS_GATEWAY_URL").ok())
+        .unwrap_or_else(|| "http://127.0.0.1:8081".to_string());
+
+    // 初始化认证管理器（优先远程IPFS）
     println!("\n🔧 初始化智能体认证管理器...");
     let start_time = Instant::now();
-    let auth_manager = AgentAuthManager::new().await?;
+    let auth_manager = if env::var("DIAP_FORCE_PUBLIC_ONLY").ok().as_deref() == Some("1") {
+        AgentAuthManager::new().await?
+    } else {
+        // 默认使用远程IPFS（可连接本地Kubo）
+        AgentAuthManager::new_with_remote_ipfs(api_url.clone(), gateway_url.clone()).await?
+    };
     let init_time = start_time.elapsed();
     
     println!("✅ 认证管理器初始化成功");
     println!("   初始化时间: {:?}", init_time);
-    println!("   节点状态: {:?}", auth_manager.get_node_status().await);
-    
-    // 获取节点信息
-    match auth_manager.get_node_info().await {
-        Ok(info) => {
-            println!("   节点ID: {}", info.id);
-            println!("   版本: {}", info.agent_version);
-        }
-        Err(e) => {
-            println!("   ⚠️  节点信息获取失败: {}", e);
-        }
-    }
+    println!("   IPFS API: {}", api_url);
+    println!("   网关: {}", gateway_url);
+    // 此轻量示例不依赖节点状态/信息API
     
     println!("\n🤖 创建智能体A (Alice)");
     println!("==========================");
@@ -157,7 +173,6 @@ async fn main() -> Result<()> {
     
     println!("\n🔧 系统状态");
     println!("============");
-    println!("   节点状态: {:?}", auth_manager.get_node_status().await);
     println!("   认证管理器: 运行中");
     println!("   缓存系统: 激活");
     
@@ -168,9 +183,7 @@ async fn main() -> Result<()> {
     println!("   4. 添加监控和日志系统");
     
     // 清理资源
-    println!("\n🧹 清理资源...");
-    auth_manager.stop().await?;
-    println!("✅ 资源清理完成");
+    // 轻量示例无需专门 stop
     
     println!("\n🎊 完整认证闭环演示完成！");
     println!("==========================================");

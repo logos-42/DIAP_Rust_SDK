@@ -7,6 +7,7 @@ use diap_rs_sdk::{
 };
 use anyhow::Result;
 use std::time::Instant;
+use std::env;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -16,14 +17,39 @@ async fn main() -> Result<()> {
     println!("🚀 IPFS双向验证闭环演示");
     println!("==========================================");
     
-    // 1. 初始化双向验证管理器
+    // 读取CLI/ENV参数
+    let args: Vec<String> = std::env::args().collect();
+    let mut api_url_cli: Option<String> = None;
+    let mut gateway_url_cli: Option<String> = None;
+    let mut i = 1;
+    while i + 1 < args.len() {
+        match args[i].as_str() {
+            "--api-url" => { api_url_cli = Some(args[i+1].clone()); i += 2; }
+            "--gateway-url" => { gateway_url_cli = Some(args[i+1].clone()); i += 2; }
+            _ => { i += 1; }
+        }
+    }
+    let api_url = api_url_cli
+        .or_else(|| env::var("DIAP_IPFS_API_URL").ok())
+        .unwrap_or_else(|| "http://127.0.0.1:5001".to_string());
+    let gateway_url = gateway_url_cli
+        .or_else(|| env::var("DIAP_IPFS_GATEWAY_URL").ok())
+        .unwrap_or_else(|| "http://127.0.0.1:8081".to_string());
+
+    // 1. 初始化双向验证管理器（优先远程IPFS）
     println!("\n🔧 初始化IPFS双向验证管理器...");
     let start_time = Instant::now();
-    let mut verification_manager = IpfsBidirectionalVerificationManager::new().await?;
+    let mut verification_manager = if env::var("DIAP_FORCE_PUBLIC_ONLY").ok().as_deref() == Some("1") {
+        IpfsBidirectionalVerificationManager::new().await?
+    } else {
+        IpfsBidirectionalVerificationManager::new_with_remote_ipfs(api_url.clone(), gateway_url.clone()).await?
+    };
     let init_time = start_time.elapsed();
     
     println!("✅ 双向验证管理器初始化成功");
     println!("   初始化时间: {:?}", init_time);
+    println!("   IPFS API: {}", api_url);
+    println!("   网关: {}", gateway_url);
     
     // 获取IPFS节点状态
     match verification_manager.get_ipfs_node_status().await {

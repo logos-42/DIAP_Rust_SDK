@@ -12,9 +12,9 @@ pub mod key_manager;
 // IPFS客户端
 pub mod ipfs_client;
 
-// 内置IPFS节点管理器（仅Kubo分支使用）
-#[cfg(feature = "kubo")]
-pub mod ipfs_node_manager;
+// 内置IPFS节点管理器（Kubo 特性暂未启用）
+// 注：移除未定义的 feature 开关以消除编译警告
+// pub mod ipfs_node_manager;
 
 // Kubo自动安装器
 pub mod kubo_installer;
@@ -79,14 +79,13 @@ pub use ipfs_client::{
     IpfsClient, IpfsUploadResult
 };
 
-// 内置IPFS节点管理器（仅Kubo分支使用）
-#[cfg(feature = "kubo")]
-pub use ipfs_node_manager::{
-    IpfsNodeManager,
-    IpfsNodeConfig,
-    IpfsNodeStatus,
-    IpfsNodeInfo,
-};
+// 内置IPFS节点管理器导出（Kubo 特性暂未启用）
+// pub use ipfs_node_manager::{
+//     IpfsNodeManager,
+//     IpfsNodeConfig,
+//     IpfsNodeStatus,
+//     IpfsNodeInfo,
+// };
 
 // Kubo自动安装器
 pub use kubo_installer::KuboInstaller;

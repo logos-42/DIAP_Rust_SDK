@@ -1,0 +1,17 @@
+[package]
+name = "diap-mcp-server"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "diap_mcp_server"
+crate-type = ["cdylib"]
+
+[dependencies]
+diap-rs-sdk = { path = ".." }
+pyo3 = { version = "0.20", features = ["extension-module"] }
+pyo3-asyncio = { version = "0.20", features = ["tokio-runtime"] }
+tokio = { version = "1.0", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+anyhow = "1.0"
