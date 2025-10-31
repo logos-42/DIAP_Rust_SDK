@@ -15,6 +15,9 @@ pub mod ipfs_client;
 // 内置IPFS节点管理器
 pub mod ipfs_node_manager;
 
+// Kubo自动安装器
+pub mod kubo_installer;
+
 // DID构建器（简化版）
 pub mod did_builder;
 
@@ -82,6 +85,9 @@ pub use ipfs_node_manager::{
     IpfsNodeStatus,
     IpfsNodeInfo,
 };
+
+// Kubo自动安装器
+pub use kubo_installer::KuboInstaller;
 
 // DID构建器
 pub use did_builder::{
