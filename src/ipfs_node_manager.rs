@@ -10,6 +10,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 use tokio::time::sleep;
 use log;
+use crate::kubo_installer::KuboInstaller;
 
 /// IPFS节点配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -44,12 +45,15 @@ pub struct IpfsNodeConfig {
 
 impl Default for IpfsNodeConfig {
     fn default() -> Self {
-        let mut data_dir = std::env::temp_dir();
-        data_dir.push("diap-ipfs");
+        // 使用用户主目录下的固定位置，确保数据持久化
+        let data_dir = dirs::home_dir()
+            .unwrap_or_else(|| std::env::temp_dir())
+            .join(".diap")
+            .join("ipfs");
         
         Self {
             data_dir,
-            api_port: 5001,
+            api_port: 5001,      // 默认端口，可在启动时动态调整
             gateway_port: 8080,
             auto_start: true,
             startup_timeout: 30,
@@ -271,7 +275,19 @@ impl IpfsNodeManager {
             }
         }
         
-        anyhow::bail!("无法找到IPFS，请确保IPFS已安装并在PATH中，或安装在常见位置");
+        // 如果都找不到，尝试自动安装Kubo
+        log::info!("未找到IPFS，尝试自动安装Kubo...");
+        let installer = KuboInstaller::new();
+        match installer.ensure_kubo_installed().await {
+            Ok(_) => {
+                log::info!("✓ Kubo自动安装成功");
+                Ok(())
+            }
+            Err(e) => {
+                log::error!("Kubo自动安装失败: {}", e);
+                anyhow::bail!("无法找到IPFS，自动安装也失败。请手动安装IPFS或检查网络连接");
+            }
+        }
     }
     
     /// 检查现有IPFS节点是否运行
@@ -321,7 +337,10 @@ impl IpfsNodeManager {
             }
         }
         
-        anyhow::bail!("无法找到IPFS可执行文件");
+        // 最后尝试自动安装的Kubo
+        let installer = KuboInstaller::new();
+        let kubo_path = installer.ensure_kubo_installed().await?;
+        Ok(kubo_path.to_string_lossy().to_string())
     }
     
     /// 初始化IPFS仓库

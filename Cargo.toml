@@ -66,6 +66,11 @@ toml = "0.8"
 directories = "5.0"  # 跨平台目录
 dirs = "5.0"  # 用户目录
 
+# Kubo自动安装依赖
+portpicker = "0.1"  # 自动分配可用端口
+flate2 = "1.0"      # 解压tar.gz文件
+tar = "0.4"         # 处理tar归档
+
 # 日志
 log = "0.4"
 env_logger = "0.10"
