@@ -85,6 +85,7 @@ futures = "0.3"
 # 网络和系统（必要依赖）
 reqwest = { version = "0.11", features = ["json", "multipart", "stream"] }
 uuid = { version = "1.0", features = ["v4", "serde"] }
+urlencoding = "2.1"  # URL编码（用于IPNS API调用）
 
 # 缓存和存储
 dashmap = "5.5"

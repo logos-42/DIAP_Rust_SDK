@@ -23,6 +23,19 @@ pub struct IpfsUploadResult {
     pub provider: String,
 }
 
+/// IPNS发布结果
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IpnsPublishResult {
+    /// IPNS名称（PeerID）
+    pub name: String,
+    
+    /// IPNS值（/ipfs/<CID>路径）
+    pub value: String,
+    
+    /// 发布时间
+    pub published_at: String,
+}
+
 /// IPFS客户端（轻量级版本）
 /// 专为边缘服务器设计，只使用HTTP客户端连接到远程IPFS节点
 #[derive(Clone)]
@@ -322,6 +335,69 @@ impl IpfsClient {
             log::warn!("未配置远程IPFS节点，跳过pin操作");
             Ok(())
         }
+    }
+
+    /// 确保命名 key 存在，返回 key 名称（与传入相同）
+    pub async fn ensure_key_exists(&self, key_name: &str) -> Result<String> {
+        let api = match &self.api_config {
+            Some(c) => &c.api_url,
+            None => anyhow::bail!("未配置远程IPFS API，无法进行IPNS key 管理"),
+        };
+        // 列出现有 key
+        let url_list = format!("{}/api/v0/key/list", api);
+        let resp = self.client.post(&url_list).send().await
+            .context("请求 key/list 失败")?;
+        if !resp.status().is_success() {
+            anyhow::bail!("key/list 失败: {}", resp.status());
+        }
+        let v: serde_json::Value = resp.json().await?;
+        if let Some(arr) = v.get("Keys").and_then(|x| x.as_array()) {
+            let exists = arr.iter().any(|k| k.get("Name").and_then(|n| n.as_str()) == Some(key_name));
+            if exists { return Ok(key_name.to_string()); }
+        }
+        // 生成新 key（ed25519）
+        let url_gen = format!("{}/api/v0/key/gen?arg={}&type=ed25519", api, urlencoding::encode(key_name));
+        let resp_gen = self.client.post(&url_gen).send().await
+            .context("请求 key/gen 失败")?;
+        if !resp_gen.status().is_success() {
+            let t = resp_gen.text().await.unwrap_or_default();
+            anyhow::bail!("key/gen 失败: {} - {}", resp_gen.status(), t);
+        }
+        Ok(key_name.to_string())
+    }
+
+    /// 发布 IPNS 记录
+    pub async fn publish_ipns(&self, cid: &str, key_name: &str, lifetime: &str, ttl: &str) -> Result<IpnsPublishResult> {
+        let api = match &self.api_config {
+            Some(c) => &c.api_url,
+            None => anyhow::bail!("未配置远程IPFS API，无法进行IPNS发布"),
+        };
+        let arg_path = format!("/ipfs/{}", cid);
+        let url = format!(
+            "{}/api/v0/name/publish?arg={}&key={}&allow-offline=true&resolve=true&lifetime={}&ttl={}",
+            api,
+            urlencoding::encode(&arg_path),
+            urlencoding::encode(key_name),
+            urlencoding::encode(lifetime),
+            urlencoding::encode(ttl)
+        );
+        let resp = self.client.post(&url)
+            .header("User-Agent", "diap-rs-sdk/0.2")
+            .send().await.context("发送 IPNS 发布请求失败")?;
+        if !resp.status().is_success() {
+            let t = resp.text().await.unwrap_or_default();
+            anyhow::bail!("IPNS 发布失败: {} - {}", resp.status(), t);
+        }
+        let v: serde_json::Value = resp.json().await?;
+        let name = v.get("Name").and_then(|x| x.as_str()).unwrap_or_default().to_string();
+        let value = v.get("Value").and_then(|x| x.as_str()).unwrap_or_default().to_string();
+        Ok(IpnsPublishResult { name, value, published_at: chrono::Utc::now().to_rfc3339() })
+    }
+
+    /// 便捷：上传后发布到 IPNS（需要提前设置 api_url）
+    pub async fn publish_after_upload(&self, cid: &str, key_name: &str, lifetime: &str, ttl: &str) -> Result<IpnsPublishResult> {
+        let key = self.ensure_key_exists(key_name).await?;
+        self.publish_ipns(cid, &key, lifetime, ttl).await
     }
 }
 

@@ -20,15 +20,23 @@ async fn main() -> Result<()> {
     
     println!("🚀 开始Iroh完整闭环P2P通信演示");
     
-    // 读取CLI/ENV参数（用于DID/ZKP/CID闭环）
+    // 读取CLI/ENV参数（用于DID/ZKP/CID闭环 + 可选IPNS）
     let args: Vec<String> = std::env::args().collect();
     let mut api_url_cli: Option<String> = None;
     let mut gateway_url_cli: Option<String> = None;
+    let mut enable_ipns = false;
+    let mut ipns_key = String::from("diap");
+    let mut ipns_lifetime = String::from("8760h");
+    let mut ipns_ttl = String::from("1h");
     let mut i = 1;
     while i + 1 < args.len() {
         match args[i].as_str() {
             "--api-url" => { api_url_cli = Some(args[i+1].clone()); i += 2; }
             "--gateway-url" => { gateway_url_cli = Some(args[i+1].clone()); i += 2; }
+            "--enable-ipns" => { enable_ipns = true; i += 1; }
+            "--ipns-key" => { ipns_key = args[i+1].clone(); i += 2; }
+            "--ipns-lifetime" => { ipns_lifetime = args[i+1].clone(); i += 2; }
+            "--ipns-ttl" => { ipns_ttl = args[i+1].clone(); i += 2; }
             _ => { i += 1; }
         }
     }
@@ -159,6 +167,63 @@ async fn main() -> Result<()> {
         &bob_info, &bob_kp, &bob_peer, &bob_reg.cid
     ).await?;
     println!("   🔐 ZKP: A→B={}, B→A={}", bob_verify_alice.success, alice_verify_bob.success);
+
+    // 可选：发布 IPNS 并验证
+    if enable_ipns {
+        println!("\n📣 发布 IPNS 记录 (key={})...", ipns_key);
+        let ipfs_client = diap_rs_sdk::IpfsClient::new_with_remote_node(api_url.clone(), gateway_url.clone(), 30);
+        // 先确保 key 存在
+        println!("   🔑 确保 IPNS key '{}' 存在...", ipns_key);
+        match ipfs_client.ensure_key_exists(&ipns_key).await {
+            Ok(key) => {
+                println!("   ✅ IPNS key '{}' 已准备好", key);
+                // 直接发布 IPNS（CID 已经上传）
+                println!("   📤 发布 Alice 的 IPNS 记录...");
+                match ipfs_client.publish_ipns(&alice_reg.cid, &key, &ipns_lifetime, &ipns_ttl).await {
+                    Ok(a_ipns) => {
+                        println!("   ✅ Alice IPNS: /ipns/{} -> {}", a_ipns.name, a_ipns.value);
+                        println!("   📤 发布 Bob 的 IPNS 记录...");
+                        match ipfs_client.publish_ipns(&bob_reg.cid, &key, &ipns_lifetime, &ipns_ttl).await {
+                            Ok(b_ipns) => {
+                                println!("   ✅ Bob   IPNS: /ipns/{} -> {}", b_ipns.name, b_ipns.value);
+                                println!("   🌐 网关访问: http://127.0.0.1:8081/ipns/{}", a_ipns.name);
+
+                                // 读取 /ipns 与 /ipfs 对比（只做前缀校验）
+                                let ipns_url = format!("{}/ipns/{}", gateway_url, a_ipns.name);
+                                let ipfs_url = format!("{}/ipfs/{}", gateway_url, alice_reg.cid);
+                                let http = reqwest::Client::new();
+                                match tokio::try_join!(
+                                    http.get(&ipns_url).send(),
+                                    http.get(&ipfs_url).send()
+                                ) {
+                                    Ok((resp_ipns, resp_ipfs)) => {
+                                        if resp_ipns.status().is_success() && resp_ipfs.status().is_success() {
+                                            println!("   ✅ IPNS 与 IPFS 网关均可访问");
+                                        } else {
+                                            println!("   ⚠️  IPNS/IPFS 网关访问存在问题: ipns={} ipfs={}", resp_ipns.status(), resp_ipfs.status());
+                                        }
+                                    }
+                                    Err(e) => {
+                                        println!("   ⚠️  网关访问请求失败: {}", e);
+                                    }
+                                }
+                                println!("   ✅ IPNS 发布完成");
+                            }
+                            Err(e) => {
+                                println!("   ❌ Bob IPNS 发布失败: {} (继续执行)", e);
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        println!("   ❌ Alice IPNS 发布失败: {} (继续执行)", e);
+                    }
+                }
+            }
+            Err(e) => {
+                println!("   ❌ IPNS key 创建/检查失败: {} (继续执行)", e);
+            }
+        }
+    }
 
     // 5. 节点2连接到节点1并发送消息（发送方）
     println!("\n🔗 建立P2P连接...");

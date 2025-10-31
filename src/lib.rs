@@ -79,7 +79,7 @@ pub use key_manager::{
 
 // IPFS客户端
 pub use ipfs_client::{
-    IpfsClient, IpfsUploadResult
+    IpfsClient, IpfsUploadResult, IpnsPublishResult
 };
 
 // 内置IPFS节点管理器导出（Kubo 特性暂未启用）
