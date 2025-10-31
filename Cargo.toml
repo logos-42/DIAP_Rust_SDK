@@ -111,11 +111,10 @@ blake3 = "1.8"
 n0-snafu = "0.2.1"
 
 [features]
-default = ["embedded-noir", "builtin-ipfs", "iroh"]
+default = ["embedded-noir", "iroh"]
 embedded-noir = []  # 启用嵌入Noir电路支持（默认，零依赖）
 external-noir = []  # 启用外部Noir支持（需要安装nargo）
 arkworks-zkp = []  # 启用arkworks ZKP支持（向后兼容）
-builtin-ipfs = []  # 启用内置IPFS节点支持（默认）
 iroh = []  # 启用Iroh P2P通信支持（默认）
 noir-precompiled = []  # 启用预编译Noir电路支持
 

@@ -6,7 +6,6 @@ use serde::{Deserialize, Serialize};
 use crate::key_manager::KeyPair;
 use crate::did_builder::{DIDBuilder, DIDDocument, get_did_document_from_cid};
 use crate::ipfs_client::IpfsClient;
-use crate::ipfs_node_manager::{IpfsNodeManager, IpfsNodeConfig};
 // 注意：已移除对zkp_prover的依赖，改用Noir ZKP
 use crate::encrypted_peer_id::{EncryptedPeerID, decrypt_peer_id_with_secret, verify_peer_id_signature};
 use libp2p::PeerId;
@@ -104,30 +103,6 @@ impl IdentityManager {
         Ok(Self::new(ipfs_client))
     }
     
-    /// 创建带有内置IPFS节点的身份管理器
-    /// 
-    /// 这会自动启动一个内置IPFS节点，实现完全去中心化
-    pub async fn new_with_builtin_ipfs(
-        ipfs_config: Option<IpfsNodeConfig>,
-        pk_path: &str,
-        vk_path: &str,
-        timeout_seconds: u64,
-    ) -> Result<(Self, IpfsNodeManager)> {
-        log::info!("🚀 创建带内置IPFS节点的IdentityManager");
-        
-        // 创建内置IPFS节点
-        let (ipfs_client, ipfs_node) = IpfsClient::new_builtin_only(
-            ipfs_config,
-            timeout_seconds,
-        ).await?;
-        
-        log::info!("✅ 内置IPFS节点启动成功");
-        
-        // 创建身份管理器
-        let manager = Self::new_with_keys(ipfs_client, pk_path, vk_path)?;
-        
-        Ok((manager, ipfs_node))
-    }
     
     /// 📝 注册身份（简化流程：一次上传 + ZKP绑定）
     pub async fn register_identity(
