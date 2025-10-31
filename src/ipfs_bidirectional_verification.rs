@@ -8,17 +8,14 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::time::{timeout, Duration};
 
 use crate::{
-    IpfsClient, IpfsNodeManager, IpfsNodeConfig,
-    KeyPair, DIDDocument, AgentInfo,
+    IpfsClient, KeyPair, DIDDocument, AgentInfo,
     AgentVerificationManager, AgentVerificationRequest,
 };
 
-/// IPFS双向验证管理器
+/// IPFS双向验证管理器（轻量级版本）
 pub struct IpfsBidirectionalVerificationManager {
     /// IPFS客户端
     ipfs_client: IpfsClient,
-    /// IPFS节点管理器
-    ipfs_node_manager: IpfsNodeManager,
     /// 智能体验证管理器
     verification_manager: AgentVerificationManager,
     /// 活跃的智能体会话
@@ -151,35 +148,43 @@ pub struct VerificationChallenge {
 }
 
 impl IpfsBidirectionalVerificationManager {
-    /// 创建新的双向验证管理器
+    /// 创建新的双向验证管理器（轻量级版本）
     pub async fn new() -> Result<Self> {
-        log::info!("🚀 初始化IPFS双向验证管理器");
+        log::info!("🚀 初始化IPFS双向验证管理器（轻量级版本）");
         
-        // 配置IPFS节点
-        let ipfs_config = IpfsNodeConfig {
-            data_dir: std::env::temp_dir().join("diap_bidirectional_verification"),
-            api_port: 5001,
-            gateway_port: 8080,
-            auto_start: true,
-            startup_timeout: 30,
-            enable_bootstrap: true,
-            enable_swarm: true,
-            swarm_port: 4001,
-            verbose_logging: false,
-        };
-        
-        // 创建IPFS客户端和节点管理器
-        let (ipfs_client, ipfs_node_manager) = IpfsClient::new_builtin_only(
-            Some(ipfs_config.clone()),
-            30
-        ).await?;
+        // 创建轻量级IPFS客户端（仅使用公共网关）
+        let ipfs_client = IpfsClient::new_public_only(30);
         
         // 创建智能体验证管理器
         let verification_manager = AgentVerificationManager::new("./noir_circuits".to_string());
         
         Ok(Self {
             ipfs_client,
-            ipfs_node_manager,
+            verification_manager,
+            active_sessions: HashMap::new(),
+            verification_cache: HashMap::new(),
+        })
+    }
+    
+    /// 创建使用远程IPFS节点的双向验证管理器
+    pub async fn new_with_remote_ipfs(
+        api_url: String,
+        gateway_url: String,
+    ) -> Result<Self> {
+        log::info!("🚀 初始化IPFS双向验证管理器（使用远程IPFS）");
+        
+        // 创建带远程节点的IPFS客户端
+        let ipfs_client = IpfsClient::new_with_remote_node(
+            api_url,
+            gateway_url,
+            30,
+        );
+        
+        // 创建智能体验证管理器
+        let verification_manager = AgentVerificationManager::new("./noir_circuits".to_string());
+        
+        Ok(Self {
+            ipfs_client,
             verification_manager,
             active_sessions: HashMap::new(),
             verification_cache: HashMap::new(),
@@ -495,16 +500,9 @@ impl IpfsBidirectionalVerificationManager {
         log::info!("🧹 清理了 {} 个过期会话", expired_count);
     }
     
-    /// 获取IPFS节点状态
-    pub async fn get_ipfs_node_status(&self) -> Result<String> {
-        match self.ipfs_node_manager.get_node_info().await {
-            Ok(info) => {
-                Ok(format!("节点ID: {}, 版本: {}", info.id, info.agent_version))
-            }
-            Err(e) => {
-                Ok(format!("节点状态未知: {}", e))
-            }
-        }
+    /// 获取IPFS客户端状态
+    pub async fn get_ipfs_client_status(&self) -> Result<String> {
+        Ok("轻量级IPFS客户端已就绪".to_string())
     }
     
     /// 获取IPFS客户端（用于共享访问）
