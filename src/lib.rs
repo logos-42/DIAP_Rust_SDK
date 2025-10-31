@@ -12,7 +12,8 @@ pub mod key_manager;
 // IPFS客户端
 pub mod ipfs_client;
 
-// 内置IPFS节点管理器
+// 内置IPFS节点管理器（仅Kubo分支使用）
+#[cfg(feature = "kubo")]
 pub mod ipfs_node_manager;
 
 // DID构建器（简化版）
@@ -75,7 +76,8 @@ pub use ipfs_client::{
     IpfsClient, IpfsUploadResult
 };
 
-// 内置IPFS节点管理器
+// 内置IPFS节点管理器（仅Kubo分支使用）
+#[cfg(feature = "kubo")]
 pub use ipfs_node_manager::{
     IpfsNodeManager,
     IpfsNodeConfig,

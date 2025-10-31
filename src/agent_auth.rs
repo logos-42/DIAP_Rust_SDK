@@ -1,16 +1,14 @@
 use crate::{
-    IdentityManager, AgentInfo, ServiceInfo, KeyPair,
-    IpfsNodeManager, IpfsNodeConfig, IdentityRegistration
+    IdentityManager, AgentInfo, ServiceInfo, KeyPair, IdentityRegistration
 };
 use libp2p_identity::PeerId;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use anyhow::Result;
 use serde::{Serialize, Deserialize};
 
-/// 智能体认证管理器 - 统一的API接口
+/// 智能体认证管理器 - 统一的API接口（轻量级版本）
 pub struct AgentAuthManager {
     identity_manager: IdentityManager,
-    ipfs_node_manager: IpfsNodeManager,
 }
 
 /// 认证结果
@@ -37,28 +35,12 @@ pub struct BatchAuthResult {
 }
 
 impl AgentAuthManager {
-    /// 创建新的智能体认证管理器
+    /// 创建新的智能体认证管理器（轻量级版本）
     pub async fn new() -> Result<Self> {
-        log::info!("🚀 初始化智能体认证管理器");
+        log::info!("🚀 初始化智能体认证管理器（轻量级版本）");
         
-        // 配置IPFS节点
-        let ipfs_config = IpfsNodeConfig {
-            data_dir: std::env::temp_dir().join("diap_agent_auth"),
-            api_port: 5001,
-            gateway_port: 8081,
-            auto_start: true,
-            startup_timeout: 30,
-            enable_bootstrap: true,
-            enable_swarm: true,
-            swarm_port: 4001,
-            verbose_logging: false,
-        };
-        
-        // 创建内置IPFS客户端（会自动启动节点）
-        let (ipfs_client, ipfs_node_manager) = crate::IpfsClient::new_builtin_only(
-            Some(ipfs_config.clone()),
-            30
-        ).await?;
+        // 创建轻量级IPFS客户端（仅使用公共网关）
+        let ipfs_client = crate::IpfsClient::new_public_only(30);
         
         // 确保密钥文件存在
         let pk_path = "zkp_proving.key";
@@ -75,7 +57,38 @@ impl AgentAuthManager {
         
         Ok(Self {
             identity_manager,
-            ipfs_node_manager,
+        })
+    }
+    
+    /// 创建带远程IPFS节点的智能体认证管理器
+    pub async fn new_with_remote_ipfs(
+        api_url: String,
+        gateway_url: String,
+    ) -> Result<Self> {
+        log::info!("🚀 初始化智能体认证管理器（使用远程IPFS）");
+        
+        // 创建带远程节点的IPFS客户端
+        let ipfs_client = crate::IpfsClient::new_with_remote_node(
+            api_url,
+            gateway_url,
+            30,
+        );
+        
+        // 确保密钥文件存在
+        let pk_path = "zkp_proving.key";
+        let vk_path = "zkp_verifying.key";
+        
+        // 直接使用arkworks-rs生成密钥
+        crate::key_generator::ensure_zkp_keys_exist(pk_path, vk_path)?;
+        
+        let identity_manager = IdentityManager::new_with_keys(
+            ipfs_client,
+            pk_path,
+            vk_path
+        )?;
+        
+        Ok(Self {
+            identity_manager,
         })
     }
     
@@ -275,18 +288,4 @@ impl AgentAuthManager {
         Ok(batch_result)
     }
     
-    /// 获取节点信息
-    pub async fn get_node_info(&self) -> Result<crate::IpfsNodeInfo> {
-        self.ipfs_node_manager.get_node_info().await
-    }
-    
-    /// 获取节点状态
-    pub async fn get_node_status(&self) -> crate::IpfsNodeStatus {
-        self.ipfs_node_manager.status().await
-    }
-    
-    /// 停止节点
-    pub async fn stop(&self) -> Result<()> {
-        self.ipfs_node_manager.stop().await
-    }
 }
