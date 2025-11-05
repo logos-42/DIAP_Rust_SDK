@@ -47,6 +47,7 @@ async fn main() -> Result<()> {
         .or_else(|| env::var("DIAP_IPFS_GATEWAY_URL").ok())
         .unwrap_or_else(|| "http://127.0.0.1:8081".to_string());
     println!("IPFS API: {}  网关: {}", api_url, gateway_url);
+    println!("🔧 IPNS 启用状态: {}", enable_ipns);
     
     // 1. 创建两个端点用于真实的P2P通信
     println!("\n📡 创建Iroh端点...");
@@ -169,6 +170,7 @@ async fn main() -> Result<()> {
     println!("   🔐 ZKP: A→B={}, B→A={}", bob_verify_alice.success, alice_verify_bob.success);
 
     // 可选：发布 IPNS 并验证
+    println!("🔍 调试: enable_ipns = {}", enable_ipns);
     if enable_ipns {
         println!("\n📣 发布 IPNS 记录 (key={})...", ipns_key);
         let ipfs_client = diap_rs_sdk::IpfsClient::new_with_remote_node(api_url.clone(), gateway_url.clone(), 30);
