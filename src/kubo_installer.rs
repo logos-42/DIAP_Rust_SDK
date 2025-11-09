@@ -3,8 +3,8 @@
 
 use anyhow::{Context, Result};
 use flate2::read::GzDecoder;
-use std::fs::{self, File, Permissions};
-use std::io::{BufReader, Write};
+use std::fs::{self, File};
+use std::io::BufReader;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use tar::Archive;
@@ -87,8 +87,7 @@ impl KuboInstaller {
         // 解压文件
         self.extract_kubo(&temp_file)?;
         
-        // 设置可执行权限（Unix系统）
-        #[cfg(not(target_os = "windows"))]
+        // 设置可执行权限
         self.set_executable_permissions()?;
         
         Ok(())
@@ -217,28 +216,30 @@ impl KuboInstaller {
         Ok(())
     }
     
-    /// 设置可执行权限（Unix系统）
-    #[cfg(not(target_os = "windows"))]
+    /// 设置可执行权限
     fn set_executable_permissions(&self) -> Result<()> {
-        use std::os::unix::fs::PermissionsExt;
+        #[cfg(not(target_os = "windows"))]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            
+            let ipfs_path = self.get_kubo_path();
+            let mut perms = fs::metadata(&ipfs_path)
+                .context("无法获取文件元数据")?
+                .permissions();
+            
+            // 设置用户可执行权限
+            perms.set_mode(0o755);
+            fs::set_permissions(&ipfs_path, perms)
+                .context("无法设置可执行权限")?;
+            
+            log::info!("✓ 设置可执行权限完成");
+        }
         
-        let ipfs_path = self.get_kubo_path();
-        let mut perms = fs::metadata(&ipfs_path)
-            .context("无法获取文件元数据")?
-            .permissions();
+        #[cfg(target_os = "windows")]
+        {
+            // Windows 不需要额外的权限设置
+        }
         
-        // 设置用户可执行权限
-        perms.set_mode(0o755);
-        fs::set_permissions(&ipfs_path, perms)
-            .context("无法设置可执行权限")?;
-        
-        log::info!("✓ 设置可执行权限完成");
-        Ok(())
-    }
-    
-    #[cfg(target_os = "windows")]
-    fn set_executable_permissions(&self) -> Result<()> {
-        // Windows不需要设置可执行权限
         Ok(())
     }
     
