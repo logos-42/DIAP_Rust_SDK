@@ -200,52 +200,35 @@ async fn main() -> Result<()> {
     // 可选：发布 IPNS 并验证
     println!("🔍 调试: enable_ipns = {}", enable_ipns);
     if enable_ipns {
+        println!("\n⏳ 等待网络稳定后再进行 IPNS 发布...");
+        sleep(Duration::from_secs(10)).await;
         println!("\n📣 发布 IPNS 记录 (key={})...", ipns_key);
-        let ipfs_client = diap_rs_sdk::IpfsClient::new_with_remote_node(api_url.clone(), gateway_url.clone(), 30);
+        let ipfs_client = diap_rs_sdk::IpfsClient::new_with_remote_node(api_url.clone(), gateway_url.clone(), 120);
         // 先确保 key 存在
         println!("   🔑 确保 IPNS key '{}' 存在...", ipns_key);
         match ipfs_client.ensure_key_exists(&ipns_key).await {
             Ok(key) => {
                 println!("   ✅ IPNS key '{}' 已准备好", key);
-                // 直接发布 IPNS（CID 已经上传）
+                // 分别发布 Alice 与 Bob 的记录
                 println!("   📤 发布 Alice 的 IPNS 记录...");
                 match ipfs_client.publish_ipns(&alice_reg.cid, &key, &ipns_lifetime, &ipns_ttl).await {
                     Ok(a_ipns) => {
                         println!("   ✅ Alice IPNS: /ipns/{} -> {}", a_ipns.name, a_ipns.value);
-                        println!("   📤 发布 Bob 的 IPNS 记录...");
-                        match ipfs_client.publish_ipns(&bob_reg.cid, &key, &ipns_lifetime, &ipns_ttl).await {
-                            Ok(b_ipns) => {
-                                println!("   ✅ Bob   IPNS: /ipns/{} -> {}", b_ipns.name, b_ipns.value);
-                                println!("   🌐 网关访问: http://127.0.0.1:8081/ipns/{}", a_ipns.name);
-
-                                // 读取 /ipns 与 /ipfs 对比（只做前缀校验）
-                                let ipns_url = format!("{}/ipns/{}", gateway_url, a_ipns.name);
-                                let ipfs_url = format!("{}/ipfs/{}", gateway_url, alice_reg.cid);
-                                let http = reqwest::Client::new();
-                                match tokio::try_join!(
-                                    http.get(&ipns_url).send(),
-                                    http.get(&ipfs_url).send()
-                                ) {
-                                    Ok((resp_ipns, resp_ipfs)) => {
-                                        if resp_ipns.status().is_success() && resp_ipfs.status().is_success() {
-                                            println!("   ✅ IPNS 与 IPFS 网关均可访问");
-                                        } else {
-                                            println!("   ⚠️  IPNS/IPFS 网关访问存在问题: ipns={} ipfs={}", resp_ipns.status(), resp_ipfs.status());
-                                        }
-                                    }
-                                    Err(e) => {
-                                        println!("   ⚠️  网关访问请求失败: {}", e);
-                                    }
-                                }
-                                println!("   ✅ IPNS 发布完成");
-                            }
-                            Err(e) => {
-                                println!("   ❌ Bob IPNS 发布失败: {} (继续执行)", e);
-                            }
-                        }
+                        println!("   🌐 本地网关: {}/ipns/{}", gateway_url, a_ipns.name);
                     }
                     Err(e) => {
                         println!("   ❌ Alice IPNS 发布失败: {} (继续执行)", e);
+                    }
+                }
+
+                println!("   📤 发布 Bob 的 IPNS 记录...");
+                match ipfs_client.publish_ipns(&bob_reg.cid, &key, &ipns_lifetime, &ipns_ttl).await {
+                    Ok(b_ipns) => {
+                        println!("   ✅ Bob   IPNS: /ipns/{} -> {}", b_ipns.name, b_ipns.value);
+                        println!("   🌐 本地网关: {}/ipns/{}", gateway_url, b_ipns.name);
+                    }
+                    Err(e) => {
+                        println!("   ❌ Bob IPNS 发布失败: {} (继续执行)", e);
                     }
                 }
             }
