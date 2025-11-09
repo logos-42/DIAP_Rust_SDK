@@ -29,14 +29,42 @@ async fn main() -> Result<()> {
     let mut ipns_lifetime = String::from("8760h");
     let mut ipns_ttl = String::from("1h");
     let mut i = 1;
-    while i + 1 < args.len() {
+    while i < args.len() {
         match args[i].as_str() {
-            "--api-url" => { api_url_cli = Some(args[i+1].clone()); i += 2; }
-            "--gateway-url" => { gateway_url_cli = Some(args[i+1].clone()); i += 2; }
-            "--enable-ipns" => { enable_ipns = true; i += 1; }
-            "--ipns-key" => { ipns_key = args[i+1].clone(); i += 2; }
-            "--ipns-lifetime" => { ipns_lifetime = args[i+1].clone(); i += 2; }
-            "--ipns-ttl" => { ipns_ttl = args[i+1].clone(); i += 2; }
+            "--api-url" => {
+                if i + 1 < args.len() {
+                    api_url_cli = Some(args[i + 1].clone());
+                }
+                i += 2;
+            }
+            "--gateway-url" => {
+                if i + 1 < args.len() {
+                    gateway_url_cli = Some(args[i + 1].clone());
+                }
+                i += 2;
+            }
+            "--enable-ipns" => {
+                enable_ipns = true;
+                i += 1;
+            }
+            "--ipns-key" => {
+                if i + 1 < args.len() {
+                    ipns_key = args[i + 1].clone();
+                }
+                i += 2;
+            }
+            "--ipns-lifetime" => {
+                if i + 1 < args.len() {
+                    ipns_lifetime = args[i + 1].clone();
+                }
+                i += 2;
+            }
+            "--ipns-ttl" => {
+                if i + 1 < args.len() {
+                    ipns_ttl = args[i + 1].clone();
+                }
+                i += 2;
+            }
             _ => { i += 1; }
         }
     }

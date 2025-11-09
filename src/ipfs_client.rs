@@ -360,8 +360,9 @@ impl IpfsClient {
         let resp_gen = self.client.post(&url_gen).send().await
             .context("请求 key/gen 失败")?;
         if !resp_gen.status().is_success() {
+            let status = resp_gen.status();
             let t = resp_gen.text().await.unwrap_or_default();
-            anyhow::bail!("key/gen 失败: {} - {}", resp_gen.status(), t);
+            anyhow::bail!("key/gen 失败: {} - {}", status, t);
         }
         Ok(key_name.to_string())
     }
@@ -374,7 +375,7 @@ impl IpfsClient {
         };
         let arg_path = format!("/ipfs/{}", cid);
         let url = format!(
-            "{}/api/v0/name/publish?arg={}&key={}&allow-offline=true&resolve=true&lifetime={}&ttl={}",
+            "{}/api/v0/name/publish?arg={}&key={}&allow-offline=true&resolve=false&lifetime={}&ttl={}",
             api,
             urlencoding::encode(&arg_path),
             urlencoding::encode(key_name),
@@ -385,8 +386,9 @@ impl IpfsClient {
             .header("User-Agent", "diap-rs-sdk/0.2")
             .send().await.context("发送 IPNS 发布请求失败")?;
         if !resp.status().is_success() {
+            let status = resp.status();
             let t = resp.text().await.unwrap_or_default();
-            anyhow::bail!("IPNS 发布失败: {} - {}", resp.status(), t);
+            anyhow::bail!("IPNS 发布失败: {} - {}", status, t);
         }
         let v: serde_json::Value = resp.json().await?;
         let name = v.get("Name").and_then(|x| x.as_str()).unwrap_or_default().to_string();

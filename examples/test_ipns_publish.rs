@@ -11,7 +11,7 @@ async fn main() -> Result<()> {
     env_logger::init();
     
     println!("🚀 IPNS 发布功能测试");
-    println!("=".repeat(50));
+    println!("{}", "=".repeat(50));
     
     // 1. 创建 IPFS 客户端（连接本地 Kubo）
     let api_url = std::env::var("DIAP_IPFS_API_URL")
@@ -155,7 +155,7 @@ async fn main() -> Result<()> {
     }
     
     println!("\n✅ IPNS 发布功能测试完成!");
-    println!("=".repeat(50));
+    println!("{}", "=".repeat(50));
     
     println!("\n📋 功能总结:");
     println!("   ✅ 自动创建/检查 IPNS key");
