@@ -10,13 +10,13 @@ use serde::{Deserialize, Serialize};
 pub struct IrohConfig {
     /// 节点名称
     pub node_name: String,
-    
+
     /// 监听地址
     pub listen_addr: Option<String>,
-    
+
     /// Bootstrap节点
     pub bootstrap_nodes: Vec<String>,
-    
+
     /// 是否启用NAT穿透
     pub enable_nat_traversal: bool,
 }
@@ -34,27 +34,27 @@ impl IrohNode {
     pub async fn new(config: IrohConfig) -> Result<Self> {
         log::info!("🚀 创建Iroh节点: {}", config.node_name);
         log::warn!("⚠️  Iroh功能当前为预留状态");
-        
+
         Ok(Self { _config: config })
     }
-    
+
     /// 启动节点
     pub async fn start(&mut self) -> Result<()> {
         log::info!("启动Iroh节点...");
         // TODO: 实现iroh-net的实际启动逻辑
         Err(anyhow::anyhow!("Iroh功能尚未实现，将在v0.3.0中添加"))
     }
-    
+
     /// 连接到其他节点
     pub async fn connect(&mut self, _peer_addr: &str) -> Result<()> {
         Err(anyhow::anyhow!("Iroh功能尚未实现"))
     }
-    
+
     /// 发送数据
     pub async fn send_data(&self, _peer_id: &str, _data: &[u8]) -> Result<()> {
         Err(anyhow::anyhow!("Iroh功能尚未实现"))
     }
-    
+
     /// 接收数据
     pub async fn receive_data(&self) -> Result<Vec<u8>> {
         Err(anyhow::anyhow!("Iroh功能尚未实现"))
@@ -85,7 +85,7 @@ pub mod helpers {
     pub fn is_iroh_available() -> bool {
         cfg!(feature = "iroh")
     }
-    
+
     /// 获取Iroh功能状态信息
     pub fn get_iroh_status() -> String {
         if is_iroh_available() {
@@ -104,21 +104,21 @@ mod tests {
         println!("Iroh状态: {}", status);
         assert!(!status.is_empty());
     }
-    
+
     #[tokio::test]
     #[ignore] // 因为Iroh功能未完全实现
     async fn test_iroh_node_creation() {
         use super::*;
-        
+
         let config = IrohConfig {
             node_name: "test-node".to_string(),
             listen_addr: Some("/ip4/0.0.0.0/tcp/4000".to_string()),
             bootstrap_nodes: vec![],
             enable_nat_traversal: true,
         };
-        
+
         let result = IrohNode::new(config).await;
-        
+
         if cfg!(feature = "iroh") {
             // 如果启用了iroh feature，应该能创建
             assert!(result.is_ok());
@@ -128,4 +128,3 @@ mod tests {
         }
     }
 }
-

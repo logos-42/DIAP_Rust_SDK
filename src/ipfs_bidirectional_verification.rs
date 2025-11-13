@@ -8,8 +8,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::time::{timeout, Duration};
 
 use crate::{
-    IpfsClient, KeyPair, DIDDocument, AgentInfo,
-    AgentVerificationManager, AgentVerificationRequest,
+    AgentInfo, AgentVerificationManager, AgentVerificationRequest, DIDDocument, IpfsClient, KeyPair,
 };
 
 /// IPFS双向验证管理器（轻量级版本）
@@ -151,13 +150,13 @@ impl IpfsBidirectionalVerificationManager {
     /// 创建新的双向验证管理器（轻量级版本）
     pub async fn new() -> Result<Self> {
         log::info!("🚀 初始化IPFS双向验证管理器（轻量级版本）");
-        
+
         // 创建轻量级IPFS客户端（仅使用公共网关）
         let ipfs_client = IpfsClient::new_public_only(30);
-        
+
         // 创建智能体验证管理器
         let verification_manager = AgentVerificationManager::new("./noir_circuits".to_string());
-        
+
         Ok(Self {
             ipfs_client,
             verification_manager,
@@ -165,24 +164,17 @@ impl IpfsBidirectionalVerificationManager {
             verification_cache: HashMap::new(),
         })
     }
-    
+
     /// 创建使用远程IPFS节点的双向验证管理器
-    pub async fn new_with_remote_ipfs(
-        api_url: String,
-        gateway_url: String,
-    ) -> Result<Self> {
+    pub async fn new_with_remote_ipfs(api_url: String, gateway_url: String) -> Result<Self> {
         log::info!("🚀 初始化IPFS双向验证管理器（使用远程IPFS）");
-        
+
         // 创建带远程节点的IPFS客户端
-        let ipfs_client = IpfsClient::new_with_remote_node(
-            api_url,
-            gateway_url,
-            30,
-        );
-        
+        let ipfs_client = IpfsClient::new_with_remote_node(api_url, gateway_url, 30);
+
         // 创建智能体验证管理器
         let verification_manager = AgentVerificationManager::new("./noir_circuits".to_string());
-        
+
         Ok(Self {
             ipfs_client,
             verification_manager,
@@ -190,7 +182,7 @@ impl IpfsBidirectionalVerificationManager {
             verification_cache: HashMap::new(),
         })
     }
-    
+
     /// 注册智能体到IPFS网络
     pub async fn register_agent(
         &mut self,
@@ -198,19 +190,22 @@ impl IpfsBidirectionalVerificationManager {
         keypair: &KeyPair,
     ) -> Result<String> {
         log::info!("📝 注册智能体到IPFS网络: {}", agent_info.name);
-        
+
         // 创建DID文档
         let did_document = self.create_did_document(agent_info, keypair)?;
         let did_doc_json = serde_json::to_string_pretty(&did_document)?;
-        
+
         // 上传DID文档到IPFS
-        let upload_result = self.ipfs_client.upload(&did_doc_json, &format!("{}.json", agent_info.name)).await?;
-        
+        let upload_result = self
+            .ipfs_client
+            .upload(&did_doc_json, &format!("{}.json", agent_info.name))
+            .await?;
+
         log::info!("✅ 智能体注册成功");
         log::info!("   DID文档CID: {}", upload_result.cid);
         log::info!("   文档大小: {} bytes", upload_result.size);
         log::info!("   上传提供商: {}", upload_result.provider);
-        
+
         // 创建智能体会话
         let session = AgentSession {
             agent_id: agent_info.name.clone(),
@@ -221,13 +216,14 @@ impl IpfsBidirectionalVerificationManager {
             last_activity: self.get_current_timestamp(),
             status: SessionStatus::Pending,
         };
-        
+
         // 保存会话
-        self.active_sessions.insert(agent_info.name.clone(), session);
-        
+        self.active_sessions
+            .insert(agent_info.name.clone(), session);
+
         Ok(upload_result.cid)
     }
-    
+
     /// 发起双向验证
     pub async fn initiate_bidirectional_verification(
         &mut self,
@@ -237,19 +233,28 @@ impl IpfsBidirectionalVerificationManager {
     ) -> Result<BidirectionalVerificationResult> {
         let start_time = std::time::Instant::now();
         log::info!("🤝 发起双向验证: {} ↔ {}", initiator_id, responder_id);
-        
+
         // 检查智能体是否已注册并克隆必要数据
-        let initiator_session = self.active_sessions.get(initiator_id)
+        let initiator_session = self
+            .active_sessions
+            .get(initiator_id)
             .ok_or_else(|| anyhow::anyhow!("发起方智能体未注册: {}", initiator_id))?
             .clone();
-        
-        let responder_session = self.active_sessions.get(responder_id)
+
+        let responder_session = self
+            .active_sessions
+            .get(responder_id)
             .ok_or_else(|| anyhow::anyhow!("响应方智能体未注册: {}", responder_id))?
             .clone();
-        
+
         // 创建验证挑战
         let challenge = VerificationChallenge {
-            challenge_id: format!("{}-{}-{}", initiator_id, responder_id, self.get_current_timestamp()),
+            challenge_id: format!(
+                "{}-{}-{}",
+                initiator_id,
+                responder_id,
+                self.get_current_timestamp()
+            ),
             initiator_id: initiator_id.to_string(),
             responder_id: responder_id.to_string(),
             challenge_nonce: format!("challenge_{}_{}", initiator_id, responder_id),
@@ -257,26 +262,30 @@ impl IpfsBidirectionalVerificationManager {
             expiry_seconds: 300, // 5分钟过期
             resource_cid: resource_cid.to_string(),
         };
-        
+
         // 顺序执行双向验证（因为需要可变借用）
-        let initiator_result = self.verify_agent_identity(
-            &initiator_session,
-            &challenge,
-            &responder_session.did_document_cid,
-        ).await?;
-        
-        let responder_result = self.verify_agent_identity(
-            &responder_session,
-            &challenge,
-            &initiator_session.did_document_cid,
-        ).await?;
-        
+        let initiator_result = self
+            .verify_agent_identity(
+                &initiator_session,
+                &challenge,
+                &responder_session.did_document_cid,
+            )
+            .await?;
+
+        let responder_result = self
+            .verify_agent_identity(
+                &responder_session,
+                &challenge,
+                &initiator_session.did_document_cid,
+            )
+            .await?;
+
         let total_time = start_time.elapsed().as_millis() as u64;
-        
+
         // 判断验证是否成功
-        let success = matches!(initiator_result.status, VerificationStatus::Success) &&
-                     matches!(responder_result.status, VerificationStatus::Success);
-        
+        let success = matches!(initiator_result.status, VerificationStatus::Success)
+            && matches!(responder_result.status, VerificationStatus::Success);
+
         let result = BidirectionalVerificationResult {
             success,
             initiator_id: initiator_id.to_string(),
@@ -285,22 +294,27 @@ impl IpfsBidirectionalVerificationManager {
             responder_result,
             verification_timestamp: self.get_current_timestamp(),
             total_verification_time_ms: total_time,
-            error_message: if success { None } else { Some("双向验证失败".to_string()) },
+            error_message: if success {
+                None
+            } else {
+                Some("双向验证失败".to_string())
+            },
         };
-        
+
         // 缓存验证结果
         let cache_key = format!("{}-{}-{}", initiator_id, responder_id, resource_cid);
-        self.verification_cache.insert(cache_key, result.initiator_result.clone());
-        
+        self.verification_cache
+            .insert(cache_key, result.initiator_result.clone());
+
         if success {
             log::info!("✅ 双向验证成功完成");
         } else {
             log::warn!("❌ 双向验证失败");
         }
-        
+
         Ok(result)
     }
-    
+
     /// 验证单个智能体身份
     async fn verify_agent_identity(
         &mut self,
@@ -310,7 +324,7 @@ impl IpfsBidirectionalVerificationManager {
     ) -> Result<VerificationResult> {
         let start_time = std::time::Instant::now();
         log::info!("🔍 验证智能体身份: {}", agent_session.agent_id);
-        
+
         // 从IPFS获取对等方的DID文档
         let peer_did_document = match self.ipfs_client.get(peer_did_cid).await {
             Ok(content) => content,
@@ -326,7 +340,7 @@ impl IpfsBidirectionalVerificationManager {
                 });
             }
         };
-        
+
         // 创建验证请求
         let verification_request = AgentVerificationRequest {
             agent_id: agent_session.agent_id.clone(),
@@ -335,7 +349,7 @@ impl IpfsBidirectionalVerificationManager {
             timestamp: challenge.timestamp,
             expiry_seconds: challenge.expiry_seconds,
         };
-        
+
         // 执行智能体验证
         let verification_response = match timeout(
             Duration::from_secs(30),
@@ -343,8 +357,10 @@ impl IpfsBidirectionalVerificationManager {
                 &verification_request,
                 &agent_session.keypair.private_key,
                 &peer_did_document,
-            )
-        ).await {
+            ),
+        )
+        .await
+        {
             Ok(Ok(response)) => response,
             Ok(Err(e)) => {
                 log::error!("❌ 智能体验证失败: {}", e);
@@ -369,13 +385,15 @@ impl IpfsBidirectionalVerificationManager {
                 });
             }
         };
-        
+
         let processing_time = start_time.elapsed().as_millis() as u64;
-        
+
         // 创建证明数据
-        let proof_data = if let (Some(proof), Some(public_inputs), Some(circuit_output)) = 
-            (&verification_response.proof, &verification_response.public_inputs, &verification_response.circuit_output) {
-            
+        let proof_data = if let (Some(proof), Some(public_inputs), Some(circuit_output)) = (
+            &verification_response.proof,
+            &verification_response.public_inputs,
+            &verification_response.circuit_output,
+        ) {
             Some(ProofData {
                 proof: proof.clone(),
                 public_inputs: public_inputs.clone(),
@@ -387,7 +405,7 @@ impl IpfsBidirectionalVerificationManager {
         } else {
             None
         };
-        
+
         // 确定验证状态
         let status = match verification_response.status {
             crate::AgentVerificationStatus::Verified => VerificationStatus::Success,
@@ -395,7 +413,7 @@ impl IpfsBidirectionalVerificationManager {
             crate::AgentVerificationStatus::Expired => VerificationStatus::Timeout,
             _ => VerificationStatus::Failed,
         };
-        
+
         let result = VerificationResult {
             agent_id: agent_session.agent_id.clone(),
             status,
@@ -404,16 +422,16 @@ impl IpfsBidirectionalVerificationManager {
             processing_time_ms: processing_time,
             error_message: verification_response.error_message,
         };
-        
+
         if matches!(result.status, VerificationStatus::Success) {
             log::info!("✅ 智能体身份验证成功: {}", agent_session.agent_id);
         } else {
             log::warn!("❌ 智能体身份验证失败: {}", agent_session.agent_id);
         }
-        
+
         Ok(result)
     }
-    
+
     /// 批量验证多个智能体对
     pub async fn batch_bidirectional_verification(
         &mut self,
@@ -421,12 +439,15 @@ impl IpfsBidirectionalVerificationManager {
         resource_cid: &str,
     ) -> Result<Vec<BidirectionalVerificationResult>> {
         log::info!("🔄 开始批量双向验证: {} 对智能体", agent_pairs.len());
-        
+
         let mut results = Vec::new();
         let mut success_count = 0;
-        
+
         for (initiator_id, responder_id) in agent_pairs {
-            match self.initiate_bidirectional_verification(&initiator_id, &responder_id, resource_cid).await {
+            match self
+                .initiate_bidirectional_verification(&initiator_id, &responder_id, resource_cid)
+                .await
+            {
                 Ok(result) => {
                     if result.success {
                         success_count += 1;
@@ -463,57 +484,65 @@ impl IpfsBidirectionalVerificationManager {
                 }
             }
         }
-        
-        log::info!("✅ 批量双向验证完成: {}/{} 成功", success_count, results.len());
+
+        log::info!(
+            "✅ 批量双向验证完成: {}/{} 成功",
+            success_count,
+            results.len()
+        );
         Ok(results)
     }
-    
+
     /// 获取智能体会话信息
     pub fn get_agent_session(&self, agent_id: &str) -> Option<&AgentSession> {
         self.active_sessions.get(agent_id)
     }
-    
+
     /// 获取所有活跃会话
     pub fn get_active_sessions(&self) -> &HashMap<String, AgentSession> {
         &self.active_sessions
     }
-    
+
     /// 清理过期会话
     pub fn cleanup_expired_sessions(&mut self) {
         let current_time = self.get_current_timestamp();
         let mut expired_agents = Vec::new();
-        
+
         for (agent_id, session) in &self.active_sessions {
             // 会话超过1小时未活动则过期
             if current_time - session.last_activity > 3600 {
                 expired_agents.push(agent_id.clone());
             }
         }
-        
+
         let expired_count = expired_agents.len();
         for agent_id in expired_agents {
             if let Some(session) = self.active_sessions.get_mut(&agent_id) {
                 session.status = SessionStatus::Expired;
             }
         }
-        
+
         log::info!("🧹 清理了 {} 个过期会话", expired_count);
     }
-    
+
     /// 获取IPFS客户端状态
     pub async fn get_ipfs_client_status(&self) -> Result<String> {
         Ok("轻量级IPFS客户端已就绪".to_string())
     }
-    
+
     /// 获取IPFS客户端（用于共享访问）
     pub fn get_ipfs_client(&self) -> IpfsClient {
         self.ipfs_client.clone()
     }
-    
+
     // 私有辅助方法
-    
+
     /// 创建DID文档
-    fn create_did_document(&self, agent_info: &AgentInfo, keypair: &KeyPair) -> Result<DIDDocument> {
+    fn create_did_document(
+        &self,
+        agent_info: &AgentInfo,
+        keypair: &KeyPair,
+    ) -> Result<DIDDocument> {
         // 创建验证方法
         let verification_method = crate::VerificationMethod {
             id: format!("{}#key-1", keypair.did),
@@ -521,7 +550,7 @@ impl IpfsBidirectionalVerificationManager {
             controller: keypair.did.clone(),
             public_key_multibase: format!("z{}", bs58::encode(&keypair.public_key).into_string()),
         };
-        
+
         Ok(DIDDocument {
             context: vec!["https://www.w3.org/ns/did/v1".to_string()],
             id: keypair.did.clone(),
@@ -530,14 +559,15 @@ impl IpfsBidirectionalVerificationManager {
             service: Some(vec![crate::Service {
                 id: format!("{}#service", keypair.did),
                 service_type: "DIAP Agent Service".to_string(),
-                service_endpoint: format!("https://{}.example.com", agent_info.name.to_lowercase()).into(),
+                service_endpoint: format!("https://{}.example.com", agent_info.name.to_lowercase())
+                    .into(),
                 pubsub_topics: None,
                 network_addresses: None,
             }]),
             created: chrono::Utc::now().to_rfc3339(),
         })
     }
-    
+
     /// 获取当前时间戳
     fn get_current_timestamp(&self) -> u64 {
         SystemTime::now()
@@ -558,7 +588,10 @@ mod tests {
         if result.is_ok() {
             println!("✅ 双向验证管理器创建成功");
         } else {
-            println!("⚠️  双向验证管理器创建失败（可能是IPFS未安装）: {:?}", result.err());
+            println!(
+                "⚠️  双向验证管理器创建失败（可能是IPFS未安装）: {:?}",
+                result.err()
+            );
         }
     }
 }
