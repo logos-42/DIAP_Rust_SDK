@@ -36,7 +36,7 @@
 
 ```toml
 [dependencies]
-diap-rs-sdk = "0.2.7"
+diap-rs-sdk = "0.2.10"
 tokio = { version = "1.0", features = ["full"] }
 env_logger = "0.10"
 ```
@@ -120,6 +120,13 @@ cargo run --example ipfs_bidirectional_verification_demo
 - **ZKP**: Noir电路，4个约束，3-5ms验证
 - **存储**: IPFS去中心化存储
 - **网络**: libp2p, Iroh P2P通信
+
+## 更新记录
+
+- 0.2.10
+  - 新增：Iroh 通信写入 DID 文档（实现 iroh 填写入 DID 文档）
+  - 新增：PubSub 解码流程完善并通过验证（pubsub 解码完成验证）
+  - 文档：更新安装依赖版本到 `0.2.10`，补充示例
 
 ## 许可证
 

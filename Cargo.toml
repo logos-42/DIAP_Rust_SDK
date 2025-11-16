@@ -1,6 +1,6 @@
 [package]
 name = "diap-rs-sdk"
-version = "0.2.9"
+version = "0.2.10"
 edition = "2021"
 authors = ["liuyuanjie <2844169590@qq.com>"]
 description = "DIAP Rust SDK - 基于零知识证明的去中心化智能体身份协议，使用ZKP验证DID-CID绑定，无需IPNS"
