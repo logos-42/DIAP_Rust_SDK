@@ -79,6 +79,9 @@ pub struct DIDBuilder {
 
     /// IPFS客户端
     ipfs_client: IpfsClient,
+
+    /// 可选：Iroh 节点ID（明文字节，发布时会加密写入 DID）
+    iroh_node_id: Option<Vec<u8>>,
 }
 
 /// DID发布结果
@@ -107,6 +110,7 @@ impl DIDBuilder {
             services: Vec::new(),
             pubsub_auth_topic: None,
             ipfs_client,
+            iroh_node_id: None,
         }
     }
 
@@ -126,6 +130,12 @@ impl DIDBuilder {
             network_addresses: None,
         };
         self.services.push(service);
+        self
+    }
+
+    /// 设置 Iroh 节点 ID（明文输入，发布时将被加密进 DID 文档）
+    pub fn set_iroh_node_id(&mut self, node_id: &[u8]) -> &mut Self {
+        self.iroh_node_id = Some(node_id.to_vec());
         self
     }
 
@@ -301,6 +311,28 @@ impl DIDBuilder {
         };
         services.insert(0, libp2p_service);
 
+        // 可选：添加 IrohNode 服务（加密 Iroh ID）
+        if let Some(ref iroh_plain) = self.iroh_node_id {
+            use crate::encrypted_iroh_id::encrypt_iroh_id;
+            let signing_key = SigningKey::from_bytes(&keypair.private_key);
+            let enc = encrypt_iroh_id(&signing_key, iroh_plain)?;
+            let iroh_service = Service {
+                id: "#iroh".to_string(),
+                service_type: "IrohNode".to_string(),
+                service_endpoint: serde_json::json!({
+                    "ciphertext": base64::engine::general_purpose::STANDARD.encode(&enc.ciphertext),
+                    "nonce": base64::engine::general_purpose::STANDARD.encode(&enc.nonce),
+                    "signature": base64::engine::general_purpose::STANDARD.encode(&enc.signature),
+                    "method": enc.method,
+                    "protocol": "iroh",
+                    "version": "1.0.0"
+                }),
+                pubsub_topics: None,
+                network_addresses: None,
+            };
+            services.insert(1, iroh_service);
+        }
+
         Ok(DIDDocument {
             context: vec![
                 "https://www.w3.org/ns/did/v1".to_string(),
@@ -358,6 +390,28 @@ impl DIDBuilder {
             network_addresses: Some(network_addresses),
         };
         services.insert(0, libp2p_service);
+
+        // 可选：添加 IrohNode 服务（加密 Iroh ID）
+        if let Some(ref iroh_plain) = self.iroh_node_id {
+            use crate::encrypted_iroh_id::encrypt_iroh_id;
+            let signing_key = SigningKey::from_bytes(&keypair.private_key);
+            let enc = encrypt_iroh_id(&signing_key, iroh_plain)?;
+            let iroh_service = Service {
+                id: "#iroh".to_string(),
+                service_type: "IrohNode".to_string(),
+                service_endpoint: serde_json::json!({
+                    "ciphertext": base64::engine::general_purpose::STANDARD.encode(&enc.ciphertext),
+                    "nonce": base64::engine::general_purpose::STANDARD.encode(&enc.nonce),
+                    "signature": base64::engine::general_purpose::STANDARD.encode(&enc.signature),
+                    "method": enc.method,
+                    "protocol": "iroh",
+                    "version": "1.0.0"
+                }),
+                    pubsub_topics: None,
+                    network_addresses: None,
+            };
+            services.insert(1, iroh_service);
+        }
 
         // 确保 pubsub-auth 服务存在
         let pubsub_auth_topic = self

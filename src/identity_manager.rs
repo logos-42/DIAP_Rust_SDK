@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 use crate::encrypted_peer_id::{
     decrypt_peer_id_with_secret, verify_peer_id_signature, EncryptedPeerID,
 };
+use crate::encrypted_iroh_id::EncryptedIrohId;
 use base64::{engine::general_purpose, Engine as _};
 use ed25519_dalek::SigningKey;
 use libp2p::PeerId;
@@ -344,6 +345,61 @@ impl IdentityManager {
     pub fn ipfs_client(&self) -> &IpfsClient {
         &self.ipfs_client
     }
+
+    /// 从DID文档提取加密的 Iroh ID
+    pub fn extract_encrypted_iroh_id(&self, did_document: &DIDDocument) -> Result<EncryptedIrohId> {
+        let services = did_document
+            .service
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("DID文档缺少服务端点"))?;
+
+        let iroh_service = services
+            .iter()
+            .find(|s| s.service_type == "IrohNode")
+            .ok_or_else(|| anyhow::anyhow!("未找到 IrohNode 服务端点"))?;
+
+        let endpoint = &iroh_service.service_endpoint;
+
+        let ciphertext_b64 = endpoint
+            .get("ciphertext")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| anyhow::anyhow!("缺少ciphertext字段"))?;
+
+        let nonce_b64 = endpoint
+            .get("nonce")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| anyhow::anyhow!("缺少nonce字段"))?;
+
+        let signature_b64 = endpoint
+            .get("signature")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| anyhow::anyhow!("缺少signature字段"))?;
+
+        let method = endpoint
+            .get("method")
+            .and_then(|v| v.as_str())
+            .unwrap_or("AES-256-GCM-Ed25519-V3")
+            .to_string();
+
+        Ok(EncryptedIrohId {
+            ciphertext: general_purpose::STANDARD
+                .decode(ciphertext_b64)
+                .context("解码ciphertext失败")?,
+            nonce: general_purpose::STANDARD
+                .decode(nonce_b64)
+                .context("解码nonce失败")?,
+            signature: general_purpose::STANDARD
+                .decode(signature_b64)
+                .context("解码signature失败")?,
+            method,
+        })
+    }
+
+    /// 解密 Iroh ID（持有 DID 私钥）
+    pub fn decrypt_iroh_id(&self, keypair: &KeyPair, enc: &EncryptedIrohId) -> Result<Vec<u8>> {
+        let signing_key = ed25519_dalek::SigningKey::from_bytes(&keypair.private_key);
+        crate::encrypted_iroh_id::decrypt_iroh_id_with_secret(&signing_key, enc)
+    }
 }
 
 #[cfg(test)]
@@ -357,7 +413,7 @@ mod tests {
         // 创建身份管理器
         let ipfs_client = IpfsClient::new(
             Some("http://localhost:5001".to_string()),
-            Some("http://localhost:8080".to_string()),
+            Some("http://localhost:8081".to_string()),
             None,
             None,
             30,

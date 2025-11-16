@@ -27,6 +27,8 @@ pub mod libp2p_node;
 
 // 签名PeerID（隐私保护）
 pub mod encrypted_peer_id;
+// Iroh ID 加密
+pub mod encrypted_iroh_id;
 
 // ZKP模块 (基于Noir)
 
