@@ -196,6 +196,22 @@ impl PubsubAuthenticator {
         }
     }
 
+    /// 判断给定标识是否为 IPNS 格式
+    fn is_ipns_format(value: &str) -> bool {
+        let v = value.trim();
+        if v.starts_with("/ipns/") {
+            return true;
+        }
+        // 尝试作为 base58btc 的 PeerID 粗略校验（长度与可解码性）
+        // 典型长度 46-62 字符（不同多码/多基编码可能变化，这里做宽松判断）
+        if v.len() >= 46 && v.len() <= 100 {
+            if bs58::decode(v).into_vec().is_ok() {
+                return true;
+            }
+        }
+        false
+    }
+
     /// 从 DID 文档中提取 PubSub 认证主题
     pub fn extract_auth_topic_from_did(
         did_document: &crate::did_builder::DIDDocument,
@@ -441,6 +457,34 @@ impl PubsubAuthenticator {
         log::info!("🔍 验证消息: {}", message.message_id);
         log::info!("  发送者DID: {}", message.from_did);
 
+        // 0. 规范化/解析 DID 标识（支持 IPNS 名称）
+        let mut resolved_cid = message.did_cid.clone();
+        if Self::is_ipns_format(&message.did_cid) {
+            log::info!("🔎 检测到 IPNS 标识，开始解析: {}", message.did_cid);
+            match self
+                .identity_manager
+                .ipfs_client()
+                .resolve_ipns(&message.did_cid)
+                .await
+            {
+                Ok(cid) => {
+                    details.push(format!("✓ IPNS 解析成功: {} -> {}", message.did_cid, cid));
+                    resolved_cid = cid;
+                }
+                Err(e) => {
+                    details.push(format!("✗ IPNS 解析失败: {}", e));
+                    return Ok(MessageVerification {
+                        verified: false,
+                        from_did: message.from_did.clone(),
+                        details,
+                        verified_at: std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)?
+                            .as_secs(),
+                    });
+                }
+            }
+        }
+
         // 1. 验证nonce（防重放）
         match self
             .nonce_manager
@@ -486,19 +530,19 @@ impl PubsubAuthenticator {
         }
 
         // 3. 获取DID文档（先从缓存）
-        let did_document = if let Some(doc) = self.did_cache.get(&message.did_cid) {
+        let did_document = if let Some(doc) = self.did_cache.get(&resolved_cid) {
             details.push("✓ 从缓存获取DID文档".to_string());
             doc
         } else {
             match crate::did_builder::get_did_document_from_cid(
                 self.identity_manager.ipfs_client(),
-                &message.did_cid,
+                &resolved_cid,
             )
             .await
             {
                 Ok(doc) => {
                     self.did_cache
-                        .put(message.did_cid.clone(), doc.clone())
+                        .put(resolved_cid.clone(), doc.clone())
                         .ok();
                     details.push("✓ 从IPFS获取DID文档并缓存".to_string());
                     doc
@@ -522,7 +566,7 @@ impl PubsubAuthenticator {
         let zkp_result = self
             .identity_manager
             .verify_identity_with_zkp(
-                &message.did_cid,
+                &resolved_cid,
                 &message.zkp_proof,
                 message.nonce.as_bytes(),
             )

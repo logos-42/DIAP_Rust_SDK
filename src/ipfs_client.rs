@@ -277,13 +277,28 @@ impl IpfsClient {
         // 优先使用配置的网关
         if let Some(ref api_config) = self.api_config {
             log::info!("尝试从配置网关获取: {}", api_config.gateway_url);
-            match self.get_from_gateway(&api_config.gateway_url, cid).await {
-                Ok(content) => {
-                    log::info!("✅ 成功从配置网关获取内容: {}", cid);
+            if let Ok(content) = self.get_from_gateway(&api_config.gateway_url, cid).await {
+                log::info!("✅ 成功从配置网关获取内容: {}", cid);
+                return Ok(content);
+            } else {
+                log::warn!("❌ 从配置网关获取失败，尝试使用 API fallback (/api/v0/cat)");
+                // 使用 API fallback
+                let url = format!("{}/api/v0/cat?arg={}", api_config.api_url, cid);
+                let resp = self
+                    .client
+                    .post(&url)
+                    .header("User-Agent", "diap-rs-sdk/0.2")
+                    .send()
+                    .await
+                    .context("发送 API fallback 请求失败")?;
+                if resp.status().is_success() {
+                    let content = resp.text().await.context("读取 API fallback 响应失败")?;
+                    log::info!("✅ 通过 API fallback 获取内容成功: {}", cid);
                     return Ok(content);
-                }
-                Err(e) => {
-                    log::warn!("❌ 从配置网关获取失败: {}", e);
+                } else {
+                    let status = resp.status();
+                    let t = resp.text().await.unwrap_or_default();
+                    log::warn!("API fallback 失败: {} - {}", status, t);
                 }
             }
         }
@@ -448,6 +463,102 @@ impl IpfsClient {
     ) -> Result<IpnsPublishResult> {
         let key = self.ensure_key_exists(key_name).await?;
         self.publish_ipns(cid, &key, lifetime, ttl).await
+    }
+
+    /// 解析 IPNS 名称为 CID
+    /// 支持两种方式：
+    /// 1) 优先通过远程 IPFS API (/api/v0/name/resolve)
+    /// 2) 如果没有配置 API，尝试通过网关的重定向解析（HEAD 请求，不跟随重定向）
+    pub async fn resolve_ipns(&self, ipns_name: &str) -> Result<String> {
+        // 规范化传入名称，支持 "peerId" 或 "/ipns/peerId"
+        let name = ipns_name.trim();
+        let name = if name.starts_with("/ipns/") {
+            &name["/ipns/".len()..]
+        } else {
+            name
+        };
+
+        // 优先使用远程 API
+        if let Some(ref api_config) = self.api_config {
+            let url = format!(
+                "{}/api/v0/name/resolve?arg={}&recursive=true&nocache=true",
+                api_config.api_url,
+                urlencoding::encode(&format!("/ipns/{}", name))
+            );
+
+            let resp = self
+                .client
+                .post(&url)
+                .header("User-Agent", "diap-rs-sdk/0.2")
+                .send()
+                .await
+                .context("发送 IPNS 解析请求失败")?;
+
+            if !resp.status().is_success() {
+                let status = resp.status();
+                let t = resp.text().await.unwrap_or_default();
+                anyhow::bail!("IPNS 解析失败: {} - {}", status, t);
+            }
+
+            let v: serde_json::Value = resp.json().await.context("解析 IPNS 解析响应失败")?;
+            let path = v
+                .get("Path")
+                .and_then(|x| x.as_str())
+                .ok_or_else(|| anyhow::anyhow!("IPNS 解析响应缺少 Path 字段"))?;
+
+            // 期望格式为 "/ipfs/<CID>"
+            let cid = path
+                .strip_prefix("/ipfs/")
+                .ok_or_else(|| anyhow::anyhow!("IPNS 解析得到的 Path 非 /ipfs/<CID> 格式: {}", path))?;
+
+            return Ok(cid.to_string());
+        }
+
+        // 未配置 API：尝试通过公共网关使用不跟随重定向的 HEAD 请求，读取 Location 头部获取 CID
+        // 注意：并非所有网关都支持对 /ipns/<name> 返回重定向，此步骤为尽力而为
+        for gateway in &self.public_gateways {
+            // 构造一个不跟随重定向的临时客户端
+            let tmp_client = reqwest::Client::builder()
+                .redirect(reqwest::redirect::Policy::none())
+                .timeout(self.timeout)
+                .build()
+                .context("创建临时HTTP客户端失败")?;
+
+            let url = format!("{}/ipns/{}", gateway, name);
+            let resp = tmp_client.head(&url).send().await;
+            match resp {
+                Ok(r) => {
+                    // 3xx 时应包含 Location 指向 /ipfs/<CID>
+                    if r.status().is_redirection() {
+                        if let Some(loc) = r.headers().get(reqwest::header::LOCATION) {
+                            if let Ok(loc_str) = loc.to_str() {
+                                if let Some(cid) = loc_str.strip_prefix("/ipfs/") {
+                                    return Ok(cid.to_string());
+                                }
+                                // 某些网关返回绝对URL，尝试查找 "/ipfs/"
+                                if let Some(pos) = loc_str.find("/ipfs/") {
+                                    let cid_part = &loc_str[pos + "/ipfs/".len()..];
+                                    // 提取到下一个分隔符结束
+                                    let cid = cid_part
+                                        .split(|c| c == '/' || c == '?' || c == '#')
+                                        .next()
+                                        .unwrap_or(cid_part);
+                                    if !cid.is_empty() {
+                                        return Ok(cid.to_string());
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                Err(e) => {
+                    log::warn!("通过网关解析 IPNS 失败 ({}): {}", gateway, e);
+                    continue;
+                }
+            }
+        }
+
+        anyhow::bail!("未配置远程 IPFS API，且无法通过任何网关解析 IPNS 名称")
     }
 }
 

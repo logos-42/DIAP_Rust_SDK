@@ -264,8 +264,10 @@ impl DIDBuilder {
         keypair: &KeyPair,
         encrypted_peer_id: &EncryptedPeerID,
     ) -> Result<DIDDocument> {
-        // 编码公钥为multibase格式
-        let public_key_multibase = format!("z{}", bs58::encode(&keypair.public_key).into_string());
+        // 编码公钥为multibase格式（包含 Ed25519 multicodec 前缀 0xed 0x01）
+        let mut multicodec_pubkey = vec![0xed, 0x01];
+        multicodec_pubkey.extend_from_slice(&keypair.public_key);
+        let public_key_multibase = format!("z{}", bs58::encode(&multicodec_pubkey).into_string());
 
         // 创建验证方法
         let verification_method = VerificationMethod {
@@ -325,11 +327,16 @@ impl DIDBuilder {
         network_addresses: Vec<String>,
     ) -> Result<DIDDocument> {
         // 构建验证方法
+        // 编码公钥为multibase格式（包含 Ed25519 multicodec 前缀 0xed 0x01）
+        let mut multicodec_pubkey = vec![0xed, 0x01];
+        multicodec_pubkey.extend_from_slice(&keypair.public_key);
+        let public_key_multibase = format!("z{}", bs58::encode(&multicodec_pubkey).into_string());
+
         let verification_method = VerificationMethod {
             id: format!("{}#key-1", keypair.did),
             vm_type: "Ed25519VerificationKey2020".to_string(),
             controller: keypair.did.clone(),
-            public_key_multibase: format!("z{}", bs58::encode(&keypair.public_key).into_string()),
+            public_key_multibase,
         };
 
         // 构建服务列表
