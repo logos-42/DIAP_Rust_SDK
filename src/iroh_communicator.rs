@@ -158,12 +158,18 @@ impl IrohCommunicator {
         let node_addr_str = format!("{:?}", remote_addr.node_id);
 
         log::info!("🔗 连接到节点: {}", node_addr_str);
+        log::debug!("   直接地址数量: {}", remote_addr.direct_addresses.len());
+        log::debug!("   中继URL: {:?}", remote_addr.relay_url);
 
-        // 连接到目标节点
-        let _conn = self
-            .endpoint
-            .connect(remote_addr.clone(), ALPN)
+        // 获取连接超时配置（默认30秒）
+        let timeout_secs = self._config.connection_timeout.unwrap_or(30);
+        let timeout_duration = Duration::from_secs(timeout_secs);
+
+        // 连接到目标节点，使用配置的超时时间
+        let connect_future = self.endpoint.connect(remote_addr.clone(), ALPN);
+        let _conn = tokio::time::timeout(timeout_duration, connect_future)
             .await
+            .map_err(|_| anyhow!("Connection timeout after {} seconds", timeout_secs))?
             .map_err(|e| anyhow!("Failed to connect to node: {}", e))?;
 
         // 记录连接

@@ -66,6 +66,9 @@ pub mod iroh_node;
 // 配置管理（保留）
 pub mod config_manager;
 
+// 实验基准测试模块
+pub mod benchmarks;
+
 // ============ 公共导出 ============
 
 // 密钥管理
@@ -177,6 +180,12 @@ pub use iroh_node::{IrohConfig, IrohNode};
 // Iroh P2P通信器
 pub use iroh_communicator::{
     IrohCommunicator, IrohConfig as IrohCommConfig, IrohConnection, IrohMessage, IrohMessageType,
+};
+
+// 实验基准测试
+pub use benchmarks::{
+    ExperimentConfig, ExperimentResult, ExperimentRunner, MetricCollector, MetricStatistics,
+    MetricType, Measurement, ReportFormat, ReportGenerator,
 };
 
 // ============ 常用类型重导出 ============
