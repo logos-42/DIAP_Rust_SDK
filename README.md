@@ -36,7 +36,7 @@
 
 ```toml
 [dependencies]
-diap-rs-sdk = "0.2.10"
+diap-rs-sdk = "0.2.11"
 tokio = { version = "1.0", features = ["full"] }
 env_logger = "0.10"
 ```
@@ -101,6 +101,73 @@ cargo run --example ipfs_bidirectional_verification_demo
 - ✅ **自动环境适配**: 智能选择最佳后端
 - ✅ **高性能**: 预编译电路，毫秒级响应
 - ✅ **多种后端**: 嵌入、外部、arkworks、简化实现
+- ✅ **自动IPNS发布**: DID文档发布时自动发布到IPNS，支持全球访问
+- ✅ **DHT传播**: 支持直接发布到DHT网络，确保全球可访问性
+
+## IPNS 自动发布功能
+
+SDK 现在支持在发布 DID 文档时自动发布到 IPNS（InterPlanetary Name System），实现全球可访问的可变指针。
+
+### 使用示例
+
+```rust
+use diap_rs_sdk::{IdentityManager, AgentInfo, ServiceInfo, KeyPair, IpfsClient};
+use libp2p::PeerId;
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // 创建 IPFS 客户端
+    let ipfs_client = IpfsClient::new_with_remote_node(
+        "http://127.0.0.1:5001".to_string(),
+        "http://127.0.0.1:8080".to_string(),
+        30
+    );
+    
+    let manager = IdentityManager::new(ipfs_client);
+    
+    let agent_info = AgentInfo {
+        name: "MyAgent".to_string(),
+        services: vec![ServiceInfo {
+            service_type: "API".to_string(),
+            endpoint: serde_json::json!("https://api.example.com"),
+        }],
+        description: None,
+        tags: None,
+    };
+    
+    let keypair = KeyPair::generate()?;
+    let peer_id = PeerId::random();
+    
+    // 注册身份并自动发布到 IPNS
+    let registration = manager
+        .register_identity_with_ipns(
+            &agent_info,
+            &keypair,
+            &peer_id,
+            Some("my_agent_did"),  // IPNS key 名称
+            false,                 // 使用快速发布模式
+            Some("8760h"),         // lifetime: 1年
+            Some("1h"),            // TTL: 1小时
+        )
+        .await?;
+    
+    println!("DID: {}", registration.did);
+    println!("CID: {}", registration.cid);
+    if let Some(ref ipns_name) = registration.ipns_name {
+        println!("IPNS: /ipns/{}", ipns_name);
+        println!("全球访问: https://ipfs.io/ipns/{}", ipns_name);
+    }
+    
+    Ok(())
+}
+```
+
+### 两种发布模式
+
+- **快速发布** (`use_direct_publish=false`): 使用 `allow-offline=true`，立即返回，异步传播到DHT
+- **直接发布** (`use_direct_publish=true`): 使用 `allow-offline=false`，要求节点在线，立即尝试传播到DHT
+
+更多详情请参考 [自动IPNS发布指南](doc/AUTO_IPNS_PUBLISHING.md)
 
 ## Kubo分支特性（零配置部署）
 
@@ -120,13 +187,23 @@ cargo run --example ipfs_bidirectional_verification_demo
 - **ZKP**: Noir电路，4个约束，3-5ms验证
 - **存储**: IPFS去中心化存储
 - **网络**: libp2p, Iroh P2P通信
+- **命名系统**: IPNS (InterPlanetary Name System)，支持全球可访问的可变指针
 
 ## 更新记录
+
+- 0.2.11
+  - 新增：自动IPNS发布功能，DID注册时自动发布到IPNS
+  - 新增：`publish_ipns_direct()` 方法，支持直接发布到DHT (allow-offline=false)
+  - 新增：`create_and_publish_with_ipns()` 方法，自动发布DID到IPNS
+  - 新增：`register_identity_with_ipns()` 方法，注册时自动发布到IPNS
+  - 改进：添加30秒超时保护，防止IPNS发布阻塞
+  - 改进：扩展 `DIDPublishResult` 和 `IdentityRegistration`，添加IPNS字段
+  - 文档：更新示例，集成自动IPNS发布功能
 
 - 0.2.10
   - 新增：Iroh 通信写入 DID 文档（实现 iroh 填写入 DID 文档）
   - 新增：PubSub 解码流程完善并通过验证（pubsub 解码完成验证）
-  - 文档：更新安装依赖版本到 `0.2.10`，补充示例
+  - 文档：更新安装依赖版本到 `0.2.11`，补充示例
 
 ## 许可证
 
