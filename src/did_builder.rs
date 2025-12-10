@@ -101,6 +101,12 @@ pub struct DIDPublishResult {
 
     /// PubSub认证主题
     pub pubsub_auth_topic: String,
+
+    /// IPNS名称（如果已发布到IPNS）
+    pub ipns_name: Option<String>,
+
+    /// IPNS值（如果已发布到IPNS）
+    pub ipns_value: Option<String>,
 }
 
 impl DIDBuilder {
@@ -220,6 +226,8 @@ impl DIDBuilder {
             did_document: did_doc,
             encrypted_peer_id: encrypted_peer_id,
             pubsub_auth_topic: pubsub_topic,
+            ipns_name: None,
+            ipns_value: None,
         })
     }
 
@@ -265,6 +273,178 @@ impl DIDBuilder {
             did_document: did_doc,
             encrypted_peer_id,
             pubsub_auth_topic: pubsub_topic,
+            ipns_name: None,
+            ipns_value: None,
+        })
+    }
+
+    /// 创建并发布DID，自动发布到IPNS
+    /// 
+    /// # 参数
+    /// - `keypair`: 密钥对
+    /// - `libp2p_peer_id`: libp2p PeerID
+    /// - `ipns_key_name`: IPNS key 名称（如果为 None，则不发布到IPNS）
+    /// - `use_direct_publish`: 是否使用直接发布（allow-offline=false），确保DHT传播
+    /// - `ipns_lifetime`: IPNS记录生命周期（默认 "8760h"，即1年）
+    /// - `ipns_ttl`: IPNS缓存时间（默认 "1h"）
+    /// 
+    /// # 返回
+    /// 返回包含IPNS信息的DIDPublishResult
+    pub async fn create_and_publish_with_ipns(
+        &self,
+        keypair: &KeyPair,
+        libp2p_peer_id: &PeerId,
+        ipns_key_name: Option<&str>,
+        use_direct_publish: bool,
+        ipns_lifetime: Option<&str>,
+        ipns_ttl: Option<&str>,
+    ) -> Result<DIDPublishResult> {
+        log::info!("🚀 开始DID发布流程（包含IPNS自动发布）");
+
+        // 步骤1: 加密PeerID
+        log::info!("步骤1: 加密libp2p PeerID");
+        let signing_key = SigningKey::from_bytes(&keypair.private_key);
+        let encrypted_peer_id = encrypt_peer_id(&signing_key, libp2p_peer_id)?;
+        log::info!("✓ PeerID已加密");
+
+        // 步骤2: 构建DID文档
+        log::info!("步骤2: 构建DID文档");
+        let did_doc = self.build_did_document(keypair, &encrypted_peer_id)?;
+        log::info!("✓ DID文档构建完成");
+        log::info!("  DID: {}", did_doc.id);
+
+        // 步骤3: 上传到IPFS
+        log::info!("步骤3: 上传DID文档到IPFS");
+        let upload_result = self.upload_did_document(&did_doc).await?;
+        log::info!("✓ 上传完成");
+        log::info!("  CID: {}", upload_result.cid);
+
+        // 步骤4: 可选发布到IPNS（带超时保护）
+        let (ipns_name, ipns_value) = if let Some(key_name) = ipns_key_name {
+            log::info!("步骤4: 发布到IPNS（key={}, direct={}）", key_name, use_direct_publish);
+            log::info!("   开始IPNS发布流程...");
+            
+            let lifetime = ipns_lifetime.unwrap_or("8760h");
+            let ttl = ipns_ttl.unwrap_or("1h");
+            
+            // 使用超时包装，避免IPNS发布阻塞太久（最多等待30秒）
+            use tokio::time::{timeout, Duration};
+            let ipns_timeout = Duration::from_secs(30);
+            
+            let ipns_result = if use_direct_publish {
+                // 使用直接发布，确保DHT传播
+                match timeout(ipns_timeout, self.ipfs_client.publish_after_upload_direct(
+                    &upload_result.cid,
+                    key_name,
+                    lifetime,
+                    ttl,
+                )).await {
+                    Ok(Ok(ipns)) => {
+                        log::info!("✅ IPNS记录已发布到DHT: /ipns/{}", ipns.name);
+                        Some((ipns.name, ipns.value))
+                    }
+                    Ok(Err(e)) => {
+                        log::warn!("⚠️ IPNS直接发布失败（不影响主流程）: {}", e);
+                        log::warn!("   提示: 节点可能未连接到DHT网络，将尝试快速发布");
+                        
+                        // 回退到快速发布
+                        match timeout(ipns_timeout, self.ipfs_client.publish_after_upload(
+                            &upload_result.cid,
+                            key_name,
+                            lifetime,
+                            ttl,
+                        )).await {
+                            Ok(Ok(ipns)) => {
+                                log::info!("✅ IPNS记录已发布（快速模式）: /ipns/{}", ipns.name);
+                                Some((ipns.name, ipns.value))
+                            }
+                            Ok(Err(e2)) => {
+                                log::warn!("⚠️ IPNS发布失败（不影响主流程）: {}", e2);
+                                None
+                            }
+                            Err(_) => {
+                                log::warn!("⚠️ IPNS发布超时（30秒），跳过IPNS发布");
+                                None
+                            }
+                        }
+                    }
+                    Err(_) => {
+                        log::warn!("⚠️ IPNS直接发布超时（30秒），尝试快速发布");
+                        // 回退到快速发布
+                        match timeout(ipns_timeout, self.ipfs_client.publish_after_upload(
+                            &upload_result.cid,
+                            key_name,
+                            lifetime,
+                            ttl,
+                        )).await {
+                            Ok(Ok(ipns)) => {
+                                log::info!("✅ IPNS记录已发布（快速模式）: /ipns/{}", ipns.name);
+                                Some((ipns.name, ipns.value))
+                            }
+                            Ok(Err(e2)) => {
+                                log::warn!("⚠️ IPNS发布失败（不影响主流程）: {}", e2);
+                                None
+                            }
+                            Err(_) => {
+                                log::warn!("⚠️ IPNS发布超时（30秒），跳过IPNS发布");
+                                None
+                            }
+                        }
+                    }
+                }
+            } else {
+                // 使用快速发布
+                match timeout(ipns_timeout, self.ipfs_client.publish_after_upload(
+                    &upload_result.cid,
+                    key_name,
+                    lifetime,
+                    ttl,
+                )).await {
+                    Ok(Ok(ipns)) => {
+                        log::info!("✅ IPNS记录已发布: /ipns/{}", ipns.name);
+                        Some((ipns.name, ipns.value))
+                    }
+                    Ok(Err(e)) => {
+                        log::warn!("⚠️ IPNS发布失败（不影响主流程）: {}", e);
+                        None
+                    }
+                    Err(_) => {
+                        log::warn!("⚠️ IPNS发布超时（30秒），跳过IPNS发布");
+                        None
+                    }
+                }
+            };
+            
+            if let Some((ref name, ref value)) = ipns_result {
+                log::info!("  IPNS: /ipns/{} -> {}", name, value);
+            }
+            
+            ipns_result.map(|(n, v)| (Some(n), Some(v))).unwrap_or((None, None))
+        } else {
+            (None, None)
+        };
+
+        log::info!("✅ DID发布成功");
+        log::info!("  DID: {}", keypair.did);
+        log::info!("  CID: {}", upload_result.cid);
+        if ipns_name.is_some() {
+            log::info!("  IPNS: /ipns/{}", ipns_name.as_ref().unwrap());
+        }
+        log::info!("  绑定关系: 通过ZKP验证");
+
+        let pubsub_topic = self
+            .pubsub_auth_topic
+            .clone()
+            .unwrap_or_else(|| default_pubsub_auth_topic(&keypair.did));
+
+        Ok(DIDPublishResult {
+            did: keypair.did.clone(),
+            cid: upload_result.cid,
+            did_document: did_doc,
+            encrypted_peer_id,
+            pubsub_auth_topic: pubsub_topic,
+            ipns_name,
+            ipns_value,
         })
     }
 

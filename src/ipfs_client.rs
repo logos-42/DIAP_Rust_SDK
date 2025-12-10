@@ -363,10 +363,13 @@ impl IpfsClient {
             None => anyhow::bail!("未配置远程IPFS API，无法进行IPNS key 管理"),
         };
         // 列出现有 key
+        log::info!("🔑 检查 IPNS key '{}' 是否存在...", key_name);
         let url_list = format!("{}/api/v0/key/list", api);
+        log::debug!("   请求 URL: {}", url_list);
         let resp = self
             .client
             .post(&url_list)
+            .timeout(self.timeout)
             .send()
             .await
             .context("请求 key/list 失败")?;
@@ -383,14 +386,17 @@ impl IpfsClient {
             }
         }
         // 生成新 key（ed25519）
+        log::info!("   创建新的 IPNS key '{}'...", key_name);
         let url_gen = format!(
             "{}/api/v0/key/gen?arg={}&type=ed25519",
             api,
             urlencoding::encode(key_name)
         );
+        log::debug!("   请求 URL: {}", url_gen);
         let resp_gen = self
             .client
             .post(&url_gen)
+            .timeout(self.timeout)
             .send()
             .await
             .context("请求 key/gen 失败")?;
@@ -453,6 +459,94 @@ impl IpfsClient {
         })
     }
 
+    /// 直接发布 IPNS 记录到 DHT（要求节点在线）
+    /// 使用 allow-offline=false，确保记录立即传播到 DHT 网络
+    /// 
+    /// # 参数
+    /// - `cid`: 要发布的 IPFS CID
+    /// - `key_name`: IPNS key 名称
+    /// - `lifetime`: 记录的生命周期（如 "8760h"）
+    /// - `ttl`: 缓存时间（如 "1h"）
+    /// 
+    /// # 返回
+    /// 如果节点未连接到 DHT 网络，将返回错误
+    pub async fn publish_ipns_direct(
+        &self,
+        cid: &str,
+        key_name: &str,
+        lifetime: &str,
+        ttl: &str,
+    ) -> Result<IpnsPublishResult> {
+        let api = match &self.api_config {
+            Some(c) => &c.api_url,
+            None => anyhow::bail!("未配置远程IPFS API，无法进行IPNS发布"),
+        };
+        let arg_path = format!("/ipfs/{}", cid);
+        
+        // 关键改动：allow-offline=false，要求节点在线并连接到DHT
+        let url = format!(
+            "{}/api/v0/name/publish?arg={}&key={}&allow-offline=false&resolve=true&lifetime={}&ttl={}",
+            api,
+            urlencoding::encode(&arg_path),
+            urlencoding::encode(key_name),
+            urlencoding::encode(lifetime),
+            urlencoding::encode(ttl)
+        );
+        
+        log::info!("📡 发布IPNS记录到DHT（allow-offline=false）...");
+        log::info!("   要求: 节点必须在线并连接到DHT网络");
+        log::debug!("   请求 URL: {}", url);
+        
+        let resp = self
+            .client
+            .post(&url)
+            .header("User-Agent", "diap-rs-sdk/0.2")
+            .timeout(self.timeout)
+            .send()
+            .await
+            .context("发送 IPNS 发布请求失败")?;
+            
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let t = resp.text().await.unwrap_or_default();
+            
+            // 如果失败，提供更详细的错误信息
+            if t.contains("not connected to network") || t.contains("offline") {
+                anyhow::bail!(
+                    "IPNS 发布失败: 节点未连接到DHT网络。\n\
+                    提示: 1) 确保IPFS守护进程正在运行\n\
+                          2) 检查节点是否可被其他节点访问\n\
+                          3) 等待节点连接到足够的对等节点\n\
+                    原始错误: {} - {}",
+                    status, t
+                );
+            }
+            
+            anyhow::bail!("IPNS 发布失败: {} - {}", status, t);
+        }
+        
+        let v: serde_json::Value = resp.json().await?;
+        let name = v
+            .get("Name")
+            .and_then(|x| x.as_str())
+            .unwrap_or_default()
+            .to_string();
+        let value = v
+            .get("Value")
+            .and_then(|x| x.as_str())
+            .unwrap_or_default()
+            .to_string();
+            
+        log::info!("✅ IPNS记录已发布到DHT: /ipns/{}", name);
+        log::info!("   记录将在DHT网络中传播，全球可访问");
+        
+        Ok(IpnsPublishResult {
+            name,
+            value,
+            published_at: chrono::Utc::now().to_rfc3339(),
+        })
+    }
+
     /// 便捷：上传后发布到 IPNS（需要提前设置 api_url）
     pub async fn publish_after_upload(
         &self,
@@ -463,6 +557,19 @@ impl IpfsClient {
     ) -> Result<IpnsPublishResult> {
         let key = self.ensure_key_exists(key_name).await?;
         self.publish_ipns(cid, &key, lifetime, ttl).await
+    }
+
+    /// 便捷：上传后直接发布到 IPNS DHT（需要提前设置 api_url）
+    /// 使用 allow-offline=false，确保记录立即传播到 DHT
+    pub async fn publish_after_upload_direct(
+        &self,
+        cid: &str,
+        key_name: &str,
+        lifetime: &str,
+        ttl: &str,
+    ) -> Result<IpnsPublishResult> {
+        let key = self.ensure_key_exists(key_name).await?;
+        self.publish_ipns_direct(cid, &key, lifetime, ttl).await
     }
 
     /// 解析 IPNS 名称为 CID

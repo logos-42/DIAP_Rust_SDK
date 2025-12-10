@@ -61,6 +61,14 @@ pub struct IdentityRegistration {
 
     /// 注册时间
     pub registered_at: String,
+
+    /// IPNS名称（如果已发布到IPNS）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ipns_name: Option<String>,
+
+    /// IPNS值（如果已发布到IPNS）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ipns_value: Option<String>,
 }
 
 /// 身份验证结果
@@ -140,6 +148,79 @@ impl IdentityManager {
             encrypted_peer_id_hex: hex::encode(&publish_result.encrypted_peer_id.signature),
             pubsub_auth_topic: publish_result.pubsub_auth_topic,
             registered_at: chrono::Utc::now().to_rfc3339(),
+            ipns_name: None,
+            ipns_value: None,
+        })
+    }
+
+    /// 📝 注册身份并自动发布到IPNS
+    /// 
+    /// # 参数
+    /// - `agent_info`: 智能体信息
+    /// - `keypair`: 密钥对
+    /// - `libp2p_peer_id`: libp2p PeerID
+    /// - `ipns_key_name`: IPNS key 名称（如果为 None，则不发布到IPNS）
+    /// - `use_direct_publish`: 是否使用直接发布（allow-offline=false），确保DHT传播
+    /// - `ipns_lifetime`: IPNS记录生命周期（默认 "8760h"，即1年）
+    /// - `ipns_ttl`: IPNS缓存时间（默认 "1h"）
+    /// 
+    /// # 返回
+    /// 返回包含IPNS信息的身份注册结果
+    pub async fn register_identity_with_ipns(
+        &self,
+        agent_info: &AgentInfo,
+        keypair: &KeyPair,
+        libp2p_peer_id: &PeerId,
+        ipns_key_name: Option<&str>,
+        use_direct_publish: bool,
+        ipns_lifetime: Option<&str>,
+        ipns_ttl: Option<&str>,
+    ) -> Result<IdentityRegistration> {
+        log::info!("🚀 开始身份注册流程（包含IPNS自动发布）");
+        log::info!("  智能体: {}", agent_info.name);
+        log::info!("  DID: {}", keypair.did);
+        log::info!("  PeerID: {}", libp2p_peer_id);
+        if let Some(key_name) = ipns_key_name {
+            log::info!("  IPNS Key: {} (direct={})", key_name, use_direct_publish);
+        }
+
+        // 步骤1: 创建DID构建器并添加服务端点
+        let mut builder = DIDBuilder::new(self.ipfs_client.clone());
+
+        for service in &agent_info.services {
+            builder.add_service(&service.service_type, service.endpoint.clone());
+        }
+
+        // 步骤2: 创建并发布DID文档，自动发布到IPNS
+        let publish_result = builder
+            .create_and_publish_with_ipns(
+                keypair,
+                libp2p_peer_id,
+                ipns_key_name,
+                use_direct_publish,
+                ipns_lifetime,
+                ipns_ttl,
+            )
+            .await
+            .context("DID发布失败")?;
+
+        log::info!("✅ 身份注册成功");
+        log::info!("  DID: {}", publish_result.did);
+        log::info!("  CID: {}", publish_result.cid);
+        log::info!("  PubSub认证主题: {}", publish_result.pubsub_auth_topic);
+        if let Some(ref ipns_name) = publish_result.ipns_name {
+            log::info!("  IPNS: /ipns/{}", ipns_name);
+        }
+
+        Ok(IdentityRegistration {
+            did: publish_result.did,
+            cid: publish_result.cid,
+            did_document: publish_result.did_document,
+            encrypted_peer_id_hex: hex::encode(&publish_result.encrypted_peer_id.signature),
+            pubsub_auth_topic: publish_result.pubsub_auth_topic,
+            registered_at: chrono::Utc::now().to_rfc3339(),
+            ipns_name: publish_result.ipns_name,
+            ipns_value: publish_result.ipns_value,
         })
     }
 

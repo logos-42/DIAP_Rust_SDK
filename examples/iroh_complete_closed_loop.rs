@@ -223,26 +223,67 @@ async fn main() -> Result<()> {
     let (alice_info, alice_kp, alice_peer) = auth_mgr.create_agent("Alice", None)?;
     let (bob_info, bob_kp, bob_peer) = auth_mgr.create_agent("Bob", None)?;
     
-    // 测量 Alice 注册延迟
+    // 创建 IdentityManager 用于自动IPNS发布
+    let ipfs_for_identity = diap_rs_sdk::IpfsClient::new_with_remote_node(
+        api_url.clone(),
+        gateway_url.clone(),
+        120,
+    );
+    let identity_mgr = diap_rs_sdk::IdentityManager::new(ipfs_for_identity.clone());
+    
+    // 测量 Alice 注册延迟（如果启用IPNS，自动发布）
     let alice_reg_start = Instant::now();
-    let alice_reg = auth_mgr
-        .register_agent(&alice_info, &alice_kp, &alice_peer)
-        .await?;
+    let alice_reg = if enable_ipns {
+        println!("   📣 Alice 注册时将自动发布到 IPNS (key={})", ipns_key);
+        identity_mgr
+            .register_identity_with_ipns(
+                &alice_info,
+                &alice_kp,
+                &alice_peer,
+                Some(&ipns_key),
+                false,  // 使用快速发布模式
+                Some(&ipns_lifetime),
+                Some(&ipns_ttl),
+            )
+            .await?
+    } else {
+        auth_mgr
+            .register_agent(&alice_info, &alice_kp, &alice_peer)
+            .await?
+    };
     let alice_reg_time = alice_reg_start.elapsed().as_millis() as f64;
     
     let mut metadata = HashMap::new();
     metadata.insert("agent".to_string(), "alice".to_string());
     metadata.insert("cid".to_string(), alice_reg.cid.clone());
     metadata.insert("did".to_string(), alice_kp.did.clone());
+    if enable_ipns {
+        metadata.insert("ipns_enabled".to_string(), "true".to_string());
+    }
     metrics_collector
         .record_measurement(MetricType::RegistrationLatency, alice_reg_time, metadata.clone())
         .await;
     
-    // 测量 Bob 注册延迟
+    // 测量 Bob 注册延迟（如果启用IPNS，自动发布）
     let bob_reg_start = Instant::now();
-    let bob_reg = auth_mgr
-        .register_agent(&bob_info, &bob_kp, &bob_peer)
-        .await?;
+    let bob_reg = if enable_ipns {
+        println!("   📣 Bob 注册时将自动发布到 IPNS (key={})", ipns_key);
+        identity_mgr
+            .register_identity_with_ipns(
+                &bob_info,
+                &bob_kp,
+                &bob_peer,
+                Some(&ipns_key),
+                false,  // 使用快速发布模式
+                Some(&ipns_lifetime),
+                Some(&ipns_ttl),
+            )
+            .await?
+    } else {
+        auth_mgr
+            .register_agent(&bob_info, &bob_kp, &bob_peer)
+            .await?
+    };
     let bob_reg_time = bob_reg_start.elapsed().as_millis() as f64;
     
     metadata.insert("agent".to_string(), "bob".to_string());
@@ -255,6 +296,9 @@ async fn main() -> Result<()> {
         "   ✅ DID/CID 完成: Alice CID={}, Bob CID={}",
         alice_reg.cid, bob_reg.cid
     );
+    if enable_ipns {
+        println!("   📣 IPNS 已在注册时自动发布");
+    }
     
     // 测量 ZKP 生成和验证时间
     let zkp_start = Instant::now();
@@ -390,209 +434,117 @@ async fn main() -> Result<()> {
         println!("   ⚠️ 认证响应与请求不匹配，拒绝共享 PeerID");
     }
 
-    // IPNS 发布和验证测试（带性能测量）
-    println!("\n⏳ 等待网络稳定后再进行 IPNS 发布...");
-    sleep(Duration::from_secs(5)).await;
-    println!("\n📣 发布 IPNS 记录 (key={})...", ipns_key);
-    
-    let ipfs_client = diap_rs_sdk::IpfsClient::new_with_remote_node(
-        api_url.clone(),
-        gateway_url.clone(),
-        120,
-    );
-    
-    // 测量 IPNS key 创建/检查时间
-    println!("   🔑 确保 IPNS key '{}' 存在...", ipns_key);
-    let key_check_start = Instant::now();
-    match ipfs_client.ensure_key_exists(&ipns_key).await {
-        Ok(key) => {
-            let key_check_time = key_check_start.elapsed().as_millis() as f64;
-            println!("   ✅ IPNS key '{}' 已准备好", key);
-            println!("   ⏱️  key 检查耗时: {:.2} ms", key_check_time);
+    // IPNS 验证测试（如果已启用自动发布）
+    if enable_ipns {
+        println!("\n⏳ 等待网络稳定后再进行 IPNS 验证...");
+        sleep(Duration::from_secs(5)).await;
+        println!("\n🔍 验证自动发布的 IPNS 记录...");
+        
+        let ipfs_client = diap_rs_sdk::IpfsClient::new_with_remote_node(
+            api_url.clone(),
+            gateway_url.clone(),
+            120,
+        );
+        
+        // 从注册结果中获取IPNS信息（注意：IdentityRegistration 不包含IPNS字段，需要从DIDPublishResult获取）
+        // 由于我们使用的是 IdentityManager，我们需要重新获取或使用不同的方法
+        // 这里我们直接测试IPNS解析，因为IPNS key已经知道
+        
+        // 测试解析 Alice 的 IPNS 记录
+        if let Some(ref alice_ipns_name) = alice_reg.ipns_name {
+            println!("   🔍 测试解析 Alice 的 IPNS 记录: /ipns/{}", alice_ipns_name);
+            let resolve_start = Instant::now();
             
-            // 记录 key 检查时间（作为启动时间的一部分）
-            let mut metadata = HashMap::new();
-            metadata.insert("operation".to_string(), "ipns_key_check".to_string());
-            metadata.insert("key_name".to_string(), ipns_key.clone());
-            metrics_collector
-                .record_measurement(MetricType::StartupTime, key_check_time, metadata)
-                .await;
-            
-            // 分别发布 Alice 与 Bob 的记录
-            println!("   📤 发布 Alice 的 IPNS 记录...");
-            let alice_ipns_start = Instant::now();
-            match ipfs_client
-                .publish_ipns(&alice_reg.cid, &key, &ipns_lifetime, &ipns_ttl)
-                .await
-            {
-                Ok(a_ipns) => {
-                    let alice_ipns_time = alice_ipns_start.elapsed().as_millis() as f64;
-                    println!(
-                        "   ✅ Alice IPNS: /ipns/{} -> {}",
-                        a_ipns.name, a_ipns.value
-                    );
-                    println!("   🌐 本地网关: {}/ipns/{}", gateway_url, a_ipns.name);
-                    println!("   ⏱️  IPNS 发布耗时: {:.2} ms", alice_ipns_time);
+            match ipfs_client.resolve_ipns(alice_ipns_name).await {
+                Ok(resolved_cid) => {
+                    let resolve_time = resolve_start.elapsed().as_millis() as f64;
+                    println!("   ✅ IPNS 解析成功: /ipns/{} -> {}", alice_ipns_name, resolved_cid);
+                    println!("   ⏱️  解析耗时: {:.2} ms", resolve_time);
                     
-                    // 记录 IPNS 发布时间（作为注册延迟的一部分）
-                    let mut metadata = HashMap::new();
-                    metadata.insert("operation".to_string(), "ipns_publish".to_string());
-                    metadata.insert("agent".to_string(), "alice".to_string());
-                    metadata.insert("ipns_name".to_string(), a_ipns.name.clone());
-                    metadata.insert("target_cid".to_string(), alice_reg.cid.clone());
-                    metrics_collector
-                        .record_measurement(MetricType::RegistrationLatency, alice_ipns_time, metadata)
-                        .await;
-                    
-                    // 测试 IPNS 解析
-                    println!("   🔍 测试解析 Alice 的 IPNS 记录...");
-                    let resolve_start = Instant::now();
-                    match ipfs_client.resolve_ipns(&a_ipns.name).await {
-                        Ok(resolved_cid) => {
-                            let resolve_time = resolve_start.elapsed().as_millis() as f64;
-                            println!("   ✅ IPNS 解析成功: /ipns/{} -> {}", a_ipns.name, resolved_cid);
-                            println!("   ⏱️  解析耗时: {:.2} ms", resolve_time);
-                            
-                            if resolved_cid == alice_reg.cid {
-                                println!("   ✅ CID 验证成功: 解析的 CID 与注册 CID 匹配");
-                            } else {
-                                println!("   ⚠️  CID 不匹配: 期望 {}, 实际 {}", alice_reg.cid, resolved_cid);
-                            }
-                            
-                            // 记录 IPNS 解析延迟（作为消息发现延迟）
-                            let mut metadata = HashMap::new();
-                            metadata.insert("operation".to_string(), "ipns_resolve".to_string());
-                            metadata.insert("agent".to_string(), "alice".to_string());
-                            metadata.insert("ipns_name".to_string(), a_ipns.name.clone());
-                            metadata.insert("resolved_cid".to_string(), resolved_cid.clone());
-                            metadata.insert("match".to_string(), (resolved_cid == alice_reg.cid).to_string());
-                            metrics_collector
-                                .record_measurement(MetricType::MessageDiscoveryLatency, resolve_time, metadata)
-                                .await;
-                        }
-                        Err(e) => {
-                            let resolve_time = resolve_start.elapsed().as_millis() as f64;
-                            println!("   ❌ IPNS 解析失败: {} (耗时: {:.2} ms)", e, resolve_time);
-                            
-                            // 记录失败的解析尝试
-                            let mut metadata = HashMap::new();
-                            metadata.insert("operation".to_string(), "ipns_resolve_failed".to_string());
-                            metadata.insert("agent".to_string(), "alice".to_string());
-                            metadata.insert("error".to_string(), e.to_string());
-                            metrics_collector
-                                .record_measurement(MetricType::MessageDiscoveryLatency, resolve_time, metadata)
-                                .await;
-                        }
+                    if resolved_cid == alice_reg.cid {
+                        println!("   ✅ CID 验证成功: 解析的 CID 与注册 CID 匹配");
+                    } else {
+                        println!("   ⚠️  CID 不匹配: 期望 {}, 实际 {}", alice_reg.cid, resolved_cid);
                     }
+                    
+                    // 记录 IPNS 解析延迟
+                    let mut metadata = HashMap::new();
+                    metadata.insert("operation".to_string(), "ipns_resolve_auto_published".to_string());
+                    metadata.insert("agent".to_string(), "alice".to_string());
+                    metadata.insert("ipns_name".to_string(), alice_ipns_name.clone());
+                    metadata.insert("resolved_cid".to_string(), resolved_cid.clone());
+                    metadata.insert("match".to_string(), (resolved_cid == alice_reg.cid).to_string());
+                    metrics_collector
+                        .record_measurement(MetricType::MessageDiscoveryLatency, resolve_time, metadata)
+                        .await;
                 }
                 Err(e) => {
-                    let alice_ipns_time = alice_ipns_start.elapsed().as_millis() as f64;
-                    println!("   ❌ Alice IPNS 发布失败: {} (耗时: {:.2} ms)", e, alice_ipns_time);
+                    let resolve_time = resolve_start.elapsed().as_millis() as f64;
+                    println!("   ❌ IPNS 解析失败: {} (耗时: {:.2} ms)", e, resolve_time);
                     
-                    // 记录失败的发布尝试
+                    // 记录失败的解析尝试
                     let mut metadata = HashMap::new();
-                    metadata.insert("operation".to_string(), "ipns_publish_failed".to_string());
+                    metadata.insert("operation".to_string(), "ipns_resolve_failed".to_string());
                     metadata.insert("agent".to_string(), "alice".to_string());
                     metadata.insert("error".to_string(), e.to_string());
                     metrics_collector
-                        .record_measurement(MetricType::RegistrationLatency, alice_ipns_time, metadata)
+                        .record_measurement(MetricType::MessageDiscoveryLatency, resolve_time, metadata)
                         .await;
                 }
             }
-
-            println!("   📤 发布 Bob 的 IPNS 记录...");
-            let bob_ipns_start = Instant::now();
-            match ipfs_client
-                .publish_ipns(&bob_reg.cid, &key, &ipns_lifetime, &ipns_ttl)
-                .await
-            {
-                Ok(b_ipns) => {
-                    let bob_ipns_time = bob_ipns_start.elapsed().as_millis() as f64;
-                    println!(
-                        "   ✅ Bob   IPNS: /ipns/{} -> {}",
-                        b_ipns.name, b_ipns.value
-                    );
-                    println!("   🌐 本地网关: {}/ipns/{}", gateway_url, b_ipns.name);
-                    println!("   ⏱️  IPNS 发布耗时: {:.2} ms", bob_ipns_time);
+        } else {
+            println!("   ⚠️  Alice 注册结果中未包含 IPNS 信息");
+        }
+        
+        // 测试解析 Bob 的 IPNS 记录
+        if let Some(ref bob_ipns_name) = bob_reg.ipns_name {
+            println!("   🔍 测试解析 Bob 的 IPNS 记录: /ipns/{}", bob_ipns_name);
+            let resolve_start = Instant::now();
+            
+            match ipfs_client.resolve_ipns(bob_ipns_name).await {
+                Ok(resolved_cid) => {
+                    let resolve_time = resolve_start.elapsed().as_millis() as f64;
+                    println!("   ✅ IPNS 解析成功: /ipns/{} -> {}", bob_ipns_name, resolved_cid);
+                    println!("   ⏱️  解析耗时: {:.2} ms", resolve_time);
                     
-                    // 记录 IPNS 发布时间
-                    let mut metadata = HashMap::new();
-                    metadata.insert("operation".to_string(), "ipns_publish".to_string());
-                    metadata.insert("agent".to_string(), "bob".to_string());
-                    metadata.insert("ipns_name".to_string(), b_ipns.name.clone());
-                    metadata.insert("target_cid".to_string(), bob_reg.cid.clone());
-                    metrics_collector
-                        .record_measurement(MetricType::RegistrationLatency, bob_ipns_time, metadata)
-                        .await;
-                    
-                    // 测试 IPNS 解析
-                    println!("   🔍 测试解析 Bob 的 IPNS 记录...");
-                    let resolve_start = Instant::now();
-                    match ipfs_client.resolve_ipns(&b_ipns.name).await {
-                        Ok(resolved_cid) => {
-                            let resolve_time = resolve_start.elapsed().as_millis() as f64;
-                            println!("   ✅ IPNS 解析成功: /ipns/{} -> {}", b_ipns.name, resolved_cid);
-                            println!("   ⏱️  解析耗时: {:.2} ms", resolve_time);
-                            
-                            if resolved_cid == bob_reg.cid {
-                                println!("   ✅ CID 验证成功: 解析的 CID 与注册 CID 匹配");
-                            } else {
-                                println!("   ⚠️  CID 不匹配: 期望 {}, 实际 {}", bob_reg.cid, resolved_cid);
-                            }
-                            
-                            // 记录 IPNS 解析延迟
-                            let mut metadata = HashMap::new();
-                            metadata.insert("operation".to_string(), "ipns_resolve".to_string());
-                            metadata.insert("agent".to_string(), "bob".to_string());
-                            metadata.insert("ipns_name".to_string(), b_ipns.name.clone());
-                            metadata.insert("resolved_cid".to_string(), resolved_cid.clone());
-                            metadata.insert("match".to_string(), (resolved_cid == bob_reg.cid).to_string());
-                            metrics_collector
-                                .record_measurement(MetricType::MessageDiscoveryLatency, resolve_time, metadata)
-                                .await;
-                        }
-                        Err(e) => {
-                            let resolve_time = resolve_start.elapsed().as_millis() as f64;
-                            println!("   ❌ IPNS 解析失败: {} (耗时: {:.2} ms)", e, resolve_time);
-                            
-                            // 记录失败的解析尝试
-                            let mut metadata = HashMap::new();
-                            metadata.insert("operation".to_string(), "ipns_resolve_failed".to_string());
-                            metadata.insert("agent".to_string(), "bob".to_string());
-                            metadata.insert("error".to_string(), e.to_string());
-                            metrics_collector
-                                .record_measurement(MetricType::MessageDiscoveryLatency, resolve_time, metadata)
-                                .await;
-                        }
+                    if resolved_cid == bob_reg.cid {
+                        println!("   ✅ CID 验证成功: 解析的 CID 与注册 CID 匹配");
+                    } else {
+                        println!("   ⚠️  CID 不匹配: 期望 {}, 实际 {}", bob_reg.cid, resolved_cid);
                     }
+                    
+                    // 记录 IPNS 解析延迟
+                    let mut metadata = HashMap::new();
+                    metadata.insert("operation".to_string(), "ipns_resolve_auto_published".to_string());
+                    metadata.insert("agent".to_string(), "bob".to_string());
+                    metadata.insert("ipns_name".to_string(), bob_ipns_name.clone());
+                    metadata.insert("resolved_cid".to_string(), resolved_cid.clone());
+                    metadata.insert("match".to_string(), (resolved_cid == bob_reg.cid).to_string());
+                    metrics_collector
+                        .record_measurement(MetricType::MessageDiscoveryLatency, resolve_time, metadata)
+                        .await;
                 }
                 Err(e) => {
-                    let bob_ipns_time = bob_ipns_start.elapsed().as_millis() as f64;
-                    println!("   ❌ Bob IPNS 发布失败: {} (耗时: {:.2} ms)", e, bob_ipns_time);
+                    let resolve_time = resolve_start.elapsed().as_millis() as f64;
+                    println!("   ❌ IPNS 解析失败: {} (耗时: {:.2} ms)", e, resolve_time);
                     
-                    // 记录失败的发布尝试
+                    // 记录失败的解析尝试
                     let mut metadata = HashMap::new();
-                    metadata.insert("operation".to_string(), "ipns_publish_failed".to_string());
+                    metadata.insert("operation".to_string(), "ipns_resolve_failed".to_string());
                     metadata.insert("agent".to_string(), "bob".to_string());
                     metadata.insert("error".to_string(), e.to_string());
                     metrics_collector
-                        .record_measurement(MetricType::RegistrationLatency, bob_ipns_time, metadata)
+                        .record_measurement(MetricType::MessageDiscoveryLatency, resolve_time, metadata)
                         .await;
                 }
             }
+        } else {
+            println!("   ⚠️  Bob 注册结果中未包含 IPNS 信息");
         }
-        Err(e) => {
-            let key_check_time = key_check_start.elapsed().as_millis() as f64;
-            println!("   ❌ IPNS key 创建/检查失败: {} (耗时: {:.2} ms)", e, key_check_time);
-            
-            // 记录失败的 key 检查
-            let mut metadata = HashMap::new();
-            metadata.insert("operation".to_string(), "ipns_key_check_failed".to_string());
-            metadata.insert("error".to_string(), e.to_string());
-            metrics_collector
-                .record_measurement(MetricType::StartupTime, key_check_time, metadata)
-                .await;
-        }
+        
+        println!("   ✅ IPNS 自动发布功能已集成到注册流程");
+    } else {
+        println!("\n📣 IPNS 功能未启用，跳过 IPNS 测试");
     }
 
     let mut last_message_send_duration_ms: Option<f64> = None;
