@@ -1,8 +1,7 @@
 // DIAP Rust SDK - IPFS Pubsub认证通讯模块
-// 基于libp2p gossipsub实现认证的发布/订阅通信
+// 基于Iroh实现认证的发布/订阅通信
 
 use anyhow::{Context, Result};
-use libp2p::PeerId;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -159,7 +158,7 @@ pub struct PubsubAuthenticator {
     keypair: Arc<RwLock<Option<KeyPair>>>,
 
     /// 本地PeerID
-    peer_id: Arc<RwLock<Option<PeerId>>>,
+    peer_id: Arc<RwLock<Option<String>>>,
 
     /// 本地DID的CID
     local_cid: Arc<RwLock<Option<String>>>,
@@ -335,7 +334,7 @@ impl PubsubAuthenticator {
     pub async fn set_local_identity(
         &self,
         keypair: KeyPair,
-        peer_id: PeerId,
+        peer_id: String,
         cid: String,
     ) -> Result<()> {
         *self.keypair.write().await = Some(keypair);
@@ -384,7 +383,7 @@ impl PubsubAuthenticator {
             .await
             .as_ref()
             .ok_or_else(|| anyhow::anyhow!("未设置PeerID"))?
-            .to_string();
+            .clone();
 
         let cid = self
             .local_cid

@@ -21,7 +21,8 @@ impl KuboInstaller {
     /// 创建新的Kubo安装器
     pub fn new() -> Self {
         // 使用用户主目录下的固定位置
-        let install_dir = dirs::home_dir()
+        let install_dir = directories::UserDirs::new()
+            .map(|user_dirs| user_dirs.home_dir().to_path_buf())
             .unwrap_or_else(|| std::env::temp_dir())
             .join(".diap")
             .join("kubo");

@@ -21,10 +21,6 @@ pub mod kubo_installer;
 // DID构建器（简化版）
 pub mod did_builder;
 
-// libp2p身份
-pub mod libp2p_identity;
-pub mod libp2p_node;
-
 // 签名PeerID（隐私保护）
 pub mod encrypted_peer_id;
 // Iroh ID 加密
@@ -66,9 +62,6 @@ pub mod iroh_node;
 // 配置管理（保留）
 pub mod config_manager;
 
-// 实验基准测试模块
-pub mod benchmarks;
-
 // ============ 公共导出 ============
 
 // 密钥管理
@@ -94,13 +87,11 @@ pub use did_builder::{
     DIDPublishResult, Service, VerificationMethod,
 };
 
-// libp2p模块
-pub use libp2p_identity::{LibP2PIdentity, LibP2PIdentityManager};
-
-pub use libp2p_node::{LibP2PNode, NodeInfo};
-
 // Iroh P2P通信器
 pub mod iroh_communicator;
+
+// Iroh节点
+pub use iroh_node::{IrohConfig, IrohNode};
 
 // 签名PeerID（隐私保护）
 pub use encrypted_peer_id::{
@@ -174,18 +165,9 @@ pub use pubsub_authenticator::{
     PubsubAuthResponsePayload, PubsubAuthenticator, TopicConfig, TopicPolicy,
 };
 
-// Iroh节点
-pub use iroh_node::{IrohConfig, IrohNode};
-
 // Iroh P2P通信器
 pub use iroh_communicator::{
     IrohCommunicator, IrohConfig as IrohCommConfig, IrohConnection, IrohMessage, IrohMessageType,
-};
-
-// 实验基准测试
-pub use benchmarks::{
-    ExperimentConfig, ExperimentResult, ExperimentRunner, MetricCollector, MetricStatistics,
-    MetricType, Measurement, ReportFormat, ReportGenerator,
 };
 
 // ============ 常用类型重导出 ============

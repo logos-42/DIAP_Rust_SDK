@@ -13,7 +13,6 @@ use crate::encrypted_peer_id::{
 use crate::encrypted_iroh_id::EncryptedIrohId;
 use base64::{engine::general_purpose, Engine as _};
 use ed25519_dalek::SigningKey;
-use libp2p::PeerId;
 
 /// 智能体信息
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -111,17 +110,21 @@ impl IdentityManager {
         Ok(Self::new(ipfs_client))
     }
 
-    /// 📝 注册身份（简化流程：一次上传 + ZKP绑定）
+    /// 📝 注册身份（ZKP版本）
+    /// # 参数
+    /// - `agent_info`: 智能体信息
+    /// - `keypair`: 密钥对
+    /// - `peer_id`: P2P节点ID（字符串格式）
     pub async fn register_identity(
         &self,
         agent_info: &AgentInfo,
         keypair: &KeyPair,
-        libp2p_peer_id: &PeerId,
+        peer_id: &str,
     ) -> Result<IdentityRegistration> {
         log::info!("🚀 开始身份注册流程（ZKP版本）");
         log::info!("  智能体: {}", agent_info.name);
         log::info!("  DID: {}", keypair.did);
-        log::info!("  PeerID: {}", libp2p_peer_id);
+        log::info!("  PeerID: {}", peer_id);
 
         // 步骤1: 创建DID构建器并添加服务端点
         let mut builder = DIDBuilder::new(self.ipfs_client.clone());
@@ -132,7 +135,7 @@ impl IdentityManager {
 
         // 步骤2: 创建并发布DID文档（单次上传）
         let publish_result = builder
-            .create_and_publish(keypair, libp2p_peer_id)
+            .create_and_publish(keypair, peer_id)
             .await
             .context("DID发布失败")?;
 
@@ -158,7 +161,7 @@ impl IdentityManager {
     /// # 参数
     /// - `agent_info`: 智能体信息
     /// - `keypair`: 密钥对
-    /// - `libp2p_peer_id`: libp2p PeerID
+    /// - `peer_id`: P2P节点ID（字符串格式）
     /// - `ipns_key_name`: IPNS key 名称（如果为 None，则不发布到IPNS）
     /// - `use_direct_publish`: 是否使用直接发布（allow-offline=false），确保DHT传播
     /// - `ipns_lifetime`: IPNS记录生命周期（默认 "8760h"，即1年）
@@ -170,7 +173,7 @@ impl IdentityManager {
         &self,
         agent_info: &AgentInfo,
         keypair: &KeyPair,
-        libp2p_peer_id: &PeerId,
+        peer_id: &str,
         ipns_key_name: Option<&str>,
         use_direct_publish: bool,
         ipns_lifetime: Option<&str>,
@@ -179,7 +182,7 @@ impl IdentityManager {
         log::info!("🚀 开始身份注册流程（包含IPNS自动发布）");
         log::info!("  智能体: {}", agent_info.name);
         log::info!("  DID: {}", keypair.did);
-        log::info!("  PeerID: {}", libp2p_peer_id);
+        log::info!("  PeerID: {}", peer_id);
         if let Some(key_name) = ipns_key_name {
             log::info!("  IPNS Key: {} (direct={})", key_name, use_direct_publish);
         }
@@ -195,7 +198,7 @@ impl IdentityManager {
         let publish_result = builder
             .create_and_publish_with_ipns(
                 keypair,
-                libp2p_peer_id,
+                peer_id,
                 ipns_key_name,
                 use_direct_publish,
                 ipns_lifetime,
@@ -298,7 +301,7 @@ impl IdentityManager {
         &self,
         did_document: &DIDDocument,
         encrypted: &EncryptedPeerID,
-        claimed_peer_id: &PeerId,
+        claimed_peer_id: &str,
     ) -> Result<bool> {
         // 提取公钥
         let public_key_bytes = self.extract_public_key(did_document)?;
@@ -313,6 +316,8 @@ impl IdentityManager {
         let verifying_key =
             ed25519_dalek::VerifyingKey::from_bytes(key_bytes.try_into().context("公钥长度错误")?)?;
 
+        // 将字符串PeerId转换为实际的PeerId进行验证
+        // 注意：这里需要根据实际的验证逻辑调整
         verify_peer_id_signature(&verifying_key, encrypted, claimed_peer_id)
     }
 
@@ -322,7 +327,7 @@ impl IdentityManager {
         &self,
         keypair: &KeyPair,
         encrypted: &EncryptedPeerID,
-    ) -> Result<PeerId> {
+    ) -> Result<String> {
         let signing_key = SigningKey::from_bytes(&keypair.private_key);
         decrypt_peer_id_with_secret(&signing_key, encrypted)
     }
@@ -508,8 +513,7 @@ mod tests {
 
         // 生成密钥对
         let keypair = KeyPair::generate().unwrap();
-        let libp2p_keypair = LibP2PKeypair::generate_ed25519();
-        let peer_id = PeerId::from(libp2p_keypair.public());
+        let peer_id = "12D3KooWExamplePeerIdForTesting"; // 使用示例PeerID字符串
 
         // 创建智能体信息
         let agent_info = AgentInfo {

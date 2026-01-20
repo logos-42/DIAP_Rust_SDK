@@ -7,7 +7,6 @@ use crate::key_manager::KeyPair;
 use anyhow::{Context, Result};
 use base64::{engine::general_purpose, Engine as _};
 use ed25519_dalek::SigningKey;
-use libp2p::PeerId;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
@@ -27,7 +26,7 @@ pub struct DIDDocument {
     /// 认证方法
     pub authentication: Vec<String>,
 
-    /// 服务端点（包含加密的PeerID）
+    /// 服务端点（包含加密的节点ID）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub service: Option<Vec<Service>>,
 
@@ -96,7 +95,7 @@ pub struct DIDPublishResult {
     /// DID文档
     pub did_document: DIDDocument,
 
-    /// 加密的PeerID
+    /// 加密的节点ID
     pub encrypted_peer_id: EncryptedPeerID,
 
     /// PubSub认证主题
@@ -168,17 +167,17 @@ impl DIDBuilder {
     pub async fn create_and_publish_with_pubsub(
         &self,
         keypair: &KeyPair,
-        libp2p_peer_id: &PeerId,
+        node_id: &str,
         pubsub_topics: Vec<String>,
         network_addresses: Vec<String>,
     ) -> Result<DIDPublishResult> {
         log::info!("🚀 开始DID发布流程（包含PubSub信息）");
 
-        // 步骤1: 加密PeerID
-        log::info!("步骤1: 加密libp2p PeerID");
+        // 步骤1: 加密节点ID
+        log::info!("步骤1: 加密节点ID");
         let signing_key = SigningKey::from_bytes(&keypair.private_key);
-        let encrypted_peer_id = encrypt_peer_id(&signing_key, libp2p_peer_id)?;
-        log::info!("✓ PeerID已加密");
+        let encrypted_peer_id = encrypt_peer_id(&signing_key, node_id)?;
+        log::info!("✓ 节点ID已加密");
 
         // 步骤2: 构建包含PubSub信息的DID文档
         log::info!("步骤2: 构建包含PubSub信息的DID文档");
@@ -235,15 +234,15 @@ impl DIDBuilder {
     pub async fn create_and_publish(
         &self,
         keypair: &KeyPair,
-        libp2p_peer_id: &PeerId,
+        node_id: &str,
     ) -> Result<DIDPublishResult> {
         log::info!("🚀 开始DID发布流程（简化版）");
 
-        // 步骤1: 加密PeerID
-        log::info!("步骤1: 加密libp2p PeerID");
+        // 步骤1: 加密节点ID
+        log::info!("步骤1: 加密节点ID");
         let signing_key = SigningKey::from_bytes(&keypair.private_key);
-        let encrypted_peer_id = encrypt_peer_id(&signing_key, libp2p_peer_id)?;
-        log::info!("✓ PeerID已加密");
+        let encrypted_peer_id = encrypt_peer_id(&signing_key, node_id)?;
+        log::info!("✓ 节点ID已加密");
 
         // 步骤2: 构建DID文档
         log::info!("步骤2: 构建DID文档");
@@ -282,18 +281,15 @@ impl DIDBuilder {
     /// 
     /// # 参数
     /// - `keypair`: 密钥对
-    /// - `libp2p_peer_id`: libp2p PeerID
+    /// - `node_id`: P2P节点ID（字符串格式）
     /// - `ipns_key_name`: IPNS key 名称（如果为 None，则不发布到IPNS）
     /// - `use_direct_publish`: 是否使用直接发布（allow-offline=false），确保DHT传播
     /// - `ipns_lifetime`: IPNS记录生命周期（默认 "8760h"，即1年）
     /// - `ipns_ttl`: IPNS缓存时间（默认 "1h"）
-    /// 
-    /// # 返回
-    /// 返回包含IPNS信息的DIDPublishResult
     pub async fn create_and_publish_with_ipns(
         &self,
         keypair: &KeyPair,
-        libp2p_peer_id: &PeerId,
+        node_id: &str,
         ipns_key_name: Option<&str>,
         use_direct_publish: bool,
         ipns_lifetime: Option<&str>,
@@ -301,11 +297,11 @@ impl DIDBuilder {
     ) -> Result<DIDPublishResult> {
         log::info!("🚀 开始DID发布流程（包含IPNS自动发布）");
 
-        // 步骤1: 加密PeerID
-        log::info!("步骤1: 加密libp2p PeerID");
+        // 步骤1: 加密节点ID
+        log::info!("步骤1: 加密节点ID");
         let signing_key = SigningKey::from_bytes(&keypair.private_key);
-        let encrypted_peer_id = encrypt_peer_id(&signing_key, libp2p_peer_id)?;
-        log::info!("✓ PeerID已加密");
+        let encrypted_peer_id = encrypt_peer_id(&signing_key, node_id)?;
+        log::info!("✓ 节点ID已加密");
 
         // 步骤2: 构建DID文档
         log::info!("步骤2: 构建DID文档");
@@ -754,19 +750,17 @@ pub fn verify_did_document_integrity(did_doc: &DIDDocument, expected_cid: &str) 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use libp2p::identity::Keypair as LibP2PKeypair;
 
     #[test]
     fn test_build_did_document() {
         let keypair = KeyPair::generate().unwrap();
-        let libp2p_keypair = LibP2PKeypair::generate_ed25519();
-        let peer_id = PeerId::from(libp2p_keypair.public());
+        let node_id = "12D3KooWExamplePeerIdForTesting"; // 使用示例节点ID
 
         let ipfs_client = IpfsClient::new(None, None, None, None, 30);
         let builder = DIDBuilder::new(ipfs_client);
 
         let signing_key = SigningKey::from_bytes(&keypair.private_key);
-        let encrypted_peer_id = encrypt_peer_id(&signing_key, &peer_id).unwrap();
+        let encrypted_peer_id = encrypt_peer_id(&signing_key, node_id).unwrap();
 
         let did_doc = builder
             .build_did_document(&keypair, &encrypted_peer_id)

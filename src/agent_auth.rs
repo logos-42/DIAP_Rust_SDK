@@ -1,8 +1,8 @@
 use crate::{AgentInfo, IdentityManager, IdentityRegistration, KeyPair, ServiceInfo};
 use anyhow::Result;
-use libp2p_identity::PeerId;
 use serde::{Deserialize, Serialize};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
+use uuid;
 
 /// 智能体认证管理器 - 统一的API接口（轻量级版本）
 pub struct AgentAuthManager {
@@ -76,24 +76,21 @@ impl AgentAuthManager {
         &self,
         name: &str,
         _email: Option<&str>,
-    ) -> Result<(AgentInfo, KeyPair, PeerId)> {
+    ) -> Result<(AgentInfo, KeyPair, String)> {
         log::info!("🤖 创建智能体: {}", name);
 
         let agent_info = AgentInfo {
             name: name.to_string(),
             services: vec![ServiceInfo {
-                service_type: "messaging".to_string(),
-                endpoint: serde_json::json!(format!(
-                    "https://{}.example.com/messaging",
-                    name.to_lowercase()
-                )),
+                service_type: "API".to_string(),
+                endpoint: serde_json::json!("https://api.example.com"),
             }],
-            description: Some(format!("{}智能体", name)),
-            tags: Some(vec!["agent".to_string(), name.to_lowercase()]),
+            description: Some(format!("{} - DIAP智能体", name)),
+            tags: Some(vec!["diap".to_string(), "agent".to_string()]),
         };
 
         let keypair = KeyPair::generate()?;
-        let peer_id = PeerId::random();
+        let peer_id = format!("12D3KooW{}", uuid::Uuid::new_v4().to_string().replace("-", "")[..32].to_uppercase());
 
         log::info!("✅ 智能体创建成功: {}", name);
         log::info!("   DID: {}", keypair.did);
@@ -106,7 +103,7 @@ impl AgentAuthManager {
         &self,
         agent_info: &AgentInfo,
         keypair: &KeyPair,
-        peer_id: &PeerId,
+        peer_id: &str,
     ) -> Result<IdentityRegistration> {
         log::info!("📝 注册智能体身份: {}", agent_info.name);
 
@@ -200,18 +197,18 @@ impl AgentAuthManager {
         Ok(result)
     }
 
-    /// 双向认证
-    pub async fn mutual_authentication(
+    /// 双向认证流程（完整版）
+    pub async fn bidirectional_auth(
         &self,
         _alice_info: &AgentInfo,
         alice_keypair: &KeyPair,
-        _alice_peer_id: &PeerId,
+        _alice_peer_id: &str,
         alice_cid: &str,
         _bob_info: &AgentInfo,
         bob_keypair: &KeyPair,
-        _bob_peer_id: &PeerId,
+        _bob_peer_id: &str,
         bob_cid: &str,
-    ) -> Result<(AuthResult, AuthResult, AuthResult, AuthResult)> {
+    ) -> Result<(AuthResult, AuthResult, AuthResult)> {
         log::info!("🔄 开始双向认证流程");
 
         // Alice生成证明
@@ -248,15 +245,15 @@ impl AgentAuthManager {
             }
         );
 
-        Ok((alice_proof, bob_verify_alice, bob_proof, alice_verify_bob))
+        Ok((alice_proof, bob_verify_alice, alice_verify_bob))
     }
 
     /// 批量认证测试
-    pub async fn batch_authentication_test(
+    pub async fn batch_auth_test(
         &self,
         _agent_info: &AgentInfo,
         keypair: &KeyPair,
-        _peer_id: &PeerId,
+        _peer_id: &str,
         cid: &str,
         count: usize,
     ) -> Result<BatchAuthResult> {
