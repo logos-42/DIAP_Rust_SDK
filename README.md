@@ -36,7 +36,7 @@
 
 ```toml
 [dependencies]
-diap-rs-sdk = "0.2.11"
+diap-rs-sdk = "0.2.12"
 tokio = { version = "1.0", features = ["full"] }
 env_logger = "0.10"
 ```
@@ -112,7 +112,7 @@ SDK 现在支持在发布 DID 文档时自动发布到 IPNS（InterPlanetary Nam
 
 ```rust
 use diap_rs_sdk::{IdentityManager, AgentInfo, ServiceInfo, KeyPair, IpfsClient};
-use libp2p::PeerId;
+use anyhow::Result;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -136,14 +136,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     
     let keypair = KeyPair::generate()?;
-    let peer_id = PeerId::random();
+    let node_id = "12D3KooWExampleNodeIdForTesting";
     
     // 注册身份并自动发布到 IPNS
     let registration = manager
         .register_identity_with_ipns(
             &agent_info,
             &keypair,
-            &peer_id,
+            node_id,
             Some("my_agent_did"),  // IPNS key 名称
             false,                 // 使用快速发布模式
             Some("8760h"),         // lifetime: 1年
@@ -179,14 +179,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 - ✅ **完全去中心化**: 运行完整IPFS节点，参与DHT网络
 - ✅ **零配置**: 无需手动安装IPFS，开箱即用
 
-**首次运行会下载约40MB的Kubo文件，请确保网络连接正常。**
-
 ## 技术栈
 
 - **密码学**: Ed25519, AES-256-GCM, Blake2s
 - **ZKP**: Noir电路，4个约束，3-5ms验证
 - **存储**: IPFS去中心化存储
-- **网络**: libp2p, Iroh P2P通信
+- **网络**: Iroh P2P通信
 - **命名系统**: IPNS (InterPlanetary Name System)，支持全球可访问的可变指针
 
 ## 更新记录
