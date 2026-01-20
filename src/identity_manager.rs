@@ -491,7 +491,6 @@ impl IdentityManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use libp2p::identity::Keypair as LibP2PKeypair;
 
     #[tokio::test]
     #[ignore] // 需要实际的IPFS服务和ZKP keys
@@ -547,7 +546,7 @@ mod tests {
 
         // 验证身份
         let verification = manager
-            .verify_identity_with_zkp(&registration.cid, &proof.proof, nonce)
+            .verify_identity_with_zkp(&registration.cid, &proof.proof_bytes, nonce)
             .await
             .unwrap();
 

@@ -775,7 +775,8 @@ impl PubsubAuthenticator {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::pubsub_authenticator::{PubsubAuthenticator, AuthenticatedMessage, PubSubMessageType};
+    use crate::{AgentInfo, KeyPair, ServiceInfo};
 
     #[tokio::test]
     #[ignore] // 需要实际的IPFS和ZKP设置

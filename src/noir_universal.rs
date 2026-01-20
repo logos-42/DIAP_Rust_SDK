@@ -13,10 +13,10 @@ use crate::noir_embedded::EmbeddedNoirZKPManager;
 use crate::noir_zkp::NoirZKPManager;
 
 #[cfg(feature = "arkworks-zkp")]
-use crate::key_generator::{ensure_zkp_keys_exist, generate_simple_zkp_keys};
+use crate::key_generator::generate_simple_zkp_keys;
 
 /// 通用Noir后端类型
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum NoirBackend {
     /// 嵌入的预编译电路（零依赖）
     Embedded,
@@ -156,7 +156,7 @@ impl UniversalNoirManager {
             #[cfg(feature = "external-noir")]
             NoirBackend::External => {
                 log::info!("🔧 初始化外部Noir后端");
-                self.external_manager = Some(NoirZKPManager::new(&self.circuits_path)?);
+                self.external_manager = Some(NoirZKPManager::new(self.circuits_path.to_string_lossy().to_string())?);
             }
 
             #[cfg(not(feature = "external-noir"))]
@@ -217,12 +217,8 @@ impl UniversalNoirManager {
                         ],
                         public_key_hash: inputs.public_key_hash.parse::<u64>().unwrap_or(0),
                         nonce_hash: inputs.nonce_hash.parse::<u64>().unwrap_or(0),
-                        expected_output: inputs.expected_output.clone(),
-                        secret_key: [0, 0],
-                        did_document_hash: [0, 0],
-                        nonce: [0, 0],
                     };
-                    let result = manager.generate_proof(&external_inputs).await?;
+                    let result = manager.generate_did_binding_proof(&external_inputs).await?;
                     // 转换结果类型
                     Ok(NoirProofResult {
                         proof: result.proof,
@@ -574,7 +570,7 @@ mod tests {
 
     #[test]
     fn test_performance_stats() {
-        let manager = UniversalNoirManager::new();
+        let _manager = UniversalNoirManager::new();
         // 注意：这里不能直接调用async函数，实际测试中需要使用tokio::test
         // 这里只是展示测试结构
     }

@@ -259,8 +259,8 @@ mod tests {
         let decrypted1 = decrypt_peer_id_with_secret(&signing_key, &encrypted1).unwrap();
         let decrypted2 = decrypt_peer_id_with_secret(&signing_key, &encrypted2).unwrap();
 
-        assert_eq!(peer_id, decrypted1);
-        assert_eq!(peer_id, decrypted2);
+        assert_eq!(node_id, decrypted1);
+        assert_eq!(node_id, decrypted2);
 
         println!("✓ 加密随机性测试通过");
     }

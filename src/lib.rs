@@ -3,6 +3,7 @@
  * Decentralized Intelligent Agent Protocol
  * 使用零知识证明验证DID-CID绑定，无需IPNS
  */
+
 // ============ 核心模块 ============
 
 // 密钥管理
@@ -12,10 +13,6 @@ pub mod key_manager;
 pub mod ipfs_client;
 
 // 内置IPFS节点管理器（Kubo 特性暂未启用）
-// 注：移除未定义的 feature 开关以消除编译警告
-// pub mod ipfs_node_manager;
-
-// Kubo自动安装器
 pub mod kubo_installer;
 
 // DID构建器（简化版）
