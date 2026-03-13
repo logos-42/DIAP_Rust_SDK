@@ -572,6 +572,333 @@ impl IpfsClient {
         self.publish_ipns_direct(cid, &key, lifetime, ttl).await
     }
 
+    /// 并行发布到多个 IPFS 节点（加速传播）
+    /// 
+    /// # 参数
+    /// - `cid`: 要发布的 IPFS CID
+    /// - `key_name`: IPNS key 名称
+    /// - `nodes`: 多个节点的 API URL 列表
+    /// - `lifetime`: 记录的生命周期（如 "8760h"）
+    /// - `ttl`: 缓存时间（如 "1h"）
+    /// 
+    /// # 返回
+    /// 返回所有节点的发布结果（成功的结果）
+    /// 
+    /// # 示例
+    /// ```rust
+    /// let nodes = vec![
+    ///     "http://node1:5001",
+    ///     "http://node2:5001",
+    ///     "http://node3:5001",
+    /// ];
+    /// client.publish_to_multiple_nodes(&cid, "my-key", &nodes, "8760h", "1h").await?;
+    /// ```
+    pub async fn publish_to_multiple_nodes(
+        &self,
+        cid: &str,
+        key_name: &str,
+        nodes: Vec<&str>,
+        lifetime: &str,
+        ttl: &str,
+    ) -> Result<Vec<IpnsPublishResult>> {
+        use futures::future::join_all;
+
+        log::info!("🚀 并行发布到 {} 个节点...", nodes.len());
+
+        // 为每个节点创建发布任务
+        let tasks = nodes.iter().map(|&node_url| {
+            let client = &self.client;
+            let timeout = self.timeout;
+            async move {
+                let arg_path = format!("/ipfs/{}", cid);
+                let url = format!(
+                    "{}/api/v0/name/publish?arg={}&key={}&allow-offline=false&resolve=true&lifetime={}&ttl={}",
+                    node_url,
+                    urlencoding::encode(&arg_path),
+                    urlencoding::encode(key_name),
+                    urlencoding::encode(lifetime),
+                    urlencoding::encode(ttl)
+                );
+
+                let resp = client
+                    .post(&url)
+                    .header("User-Agent", "diap-rs-sdk/0.2")
+                    .timeout(timeout)
+                    .send()
+                    .await?;
+
+                if !resp.status().is_success() {
+                    let status = resp.status();
+                    let t = resp.text().await.unwrap_or_default();
+                    anyhow::bail!("节点 {} IPNS 发布失败：{} - {}", node_url, status, t);
+                }
+
+                let v: serde_json::Value = resp.json().await?;
+                let name = v
+                    .get("Name")
+                    .and_then(|x| x.as_str())
+                    .unwrap_or_default()
+                    .to_string();
+                let value = v
+                    .get("Value")
+                    .and_then(|x| x.as_str())
+                    .unwrap_or_default()
+                    .to_string();
+
+                Ok(IpnsPublishResult {
+                    name,
+                    value,
+                    published_at: chrono::Utc::now().to_rfc3339(),
+                })
+            }
+        });
+
+        // 并行执行所有任务
+        let results = join_all(tasks).await;
+
+        // 收集成功的结果
+        let (successes, failures): (Vec<_>, Vec<_>) = results.into_iter().partition(|r| r.is_ok());
+
+        if !failures.is_empty() {
+            log::warn!("⚠️ {}/{} 节点发布失败", failures.len(), nodes.len());
+            for (i, err) in failures.iter().enumerate() {
+                log::warn!("   节点 {}: {}", i + 1, err.as_ref().unwrap_err());
+            }
+        }
+
+        log::info!("✅ {}/{} 节点发布成功", successes.len(), nodes.len());
+
+        Ok(successes.into_iter().filter_map(|r| r.ok()).collect())
+    }
+
+    /// 发布 IPNS 并同时 Pin 到多个节点（确保内容可用性）
+    /// 
+    /// # 参数
+    /// - `cid`: 要发布的 IPFS CID
+    /// - `key_name`: IPNS key 名称
+    /// - `lifetime`: 记录的生命周期（如 "8760h"）
+    /// - `ttl`: 缓存时间（如 "1h"）
+    /// - `pin_nodes`: 要 Pin 的节点 API URL 列表
+    /// 
+    /// # 返回
+    /// 返回 IPNS 发布结果
+    pub async fn publish_and_pin(
+        &self,
+        cid: &str,
+        key_name: &str,
+        lifetime: &str,
+        ttl: &str,
+        pin_nodes: Vec<&str>,
+    ) -> Result<IpnsPublishResult> {
+        log::info!("📌 发布 IPNS 并 Pin 到 {} 个节点...", pin_nodes.len());
+
+        // 首先发布 IPNS
+        let ipns_result = self.publish_after_upload_direct(cid, key_name, lifetime, ttl).await?;
+
+        // 并行 Pin 到所有节点
+        if !pin_nodes.is_empty() {
+            use futures::future::join_all;
+
+            let pin_tasks = pin_nodes.iter().map(|&node_url| {
+                let client = &self.client;
+                async move {
+                    let url = format!("{}/api/v0/pin/add?arg={}", node_url, cid);
+                    let resp = client
+                        .post(&url)
+                        .header("User-Agent", "diap-rs-sdk/0.2")
+                        .send()
+                        .await?;
+
+                    if resp.status().is_success() {
+                        log::info!("✅ 已 Pin 到节点：{}", node_url);
+                        Ok::<_, anyhow::Error>(())
+                    } else {
+                        let status = resp.status();
+                        let t = resp.text().await.unwrap_or_default();
+                        log::warn!("⚠️ 节点 {} Pin 失败：{} - {}", node_url, status, t);
+                        Ok::<_, anyhow::Error>(()) // 不阻塞主流程
+                    }
+                }
+            });
+
+            join_all(pin_tasks).await;
+        }
+
+        Ok(ipns_result)
+    }
+
+    /// 预传播 CID 到多个节点（加速首次访问）
+    /// 
+    /// # 参数
+    /// - `cid`: 要传播的 IPFS CID
+    /// - `bootstrap_nodes`: 引导节点 API URL 列表
+    /// 
+    /// # 说明
+    /// 通过 Pin 操作让节点主动获取并缓存 CID 内容
+    pub async fn prepropagate_cid(
+        &self,
+        cid: &str,
+        bootstrap_nodes: Vec<&str>,
+    ) -> Result<()> {
+        log::info!("📢 预传播 CID {} 到 {} 个节点...", cid, bootstrap_nodes.len());
+
+        use futures::future::join_all;
+
+        let tasks = bootstrap_nodes.iter().map(|&node_url| {
+            let client = &self.client;
+            async move {
+                // 使用 pin remote add 或 pin add 来触发内容获取
+                let url = format!("{}/api/v0/pin/add?arg={}&progress=false", node_url, cid);
+                let resp = client
+                    .post(&url)
+                    .header("User-Agent", "diap-rs-sdk/0.2")
+                    .send()
+                    .await?;
+
+                if resp.status().is_success() {
+                    log::debug!("✅ 节点 {} 已缓存 CID {}", node_url, cid);
+                    Ok::<_, anyhow::Error>(())
+                } else {
+                    let status = resp.status();
+                    let t = resp.text().await.unwrap_or_default();
+                    log::warn!("⚠️ 节点 {} 缓存失败：{} - {}", node_url, status, t);
+                    Ok::<_, anyhow::Error>(())
+                }
+            }
+        });
+
+        join_all(tasks).await;
+        log::info!("✅ CID 预传播完成");
+        Ok(())
+    }
+
+    /// 批量发布到多个 IPNS key（适用于多身份场景）
+    /// 
+    /// # 参数
+    /// - `cid`: 要发布的 IPFS CID
+    /// - `keys`: 多个 IPNS key 名称列表
+    /// - `lifetime`: 记录的生命周期（如 "8760h"）
+    /// 
+    /// # 返回
+    /// 返回所有 key 的发布结果
+    pub async fn batch_publish_ipns(
+        &self,
+        cid: &str,
+        keys: Vec<&str>,
+        lifetime: &str,
+    ) -> Result<Vec<IpnsPublishResult>> {
+        use futures::future::join_all;
+
+        log::info!("🔑 批量发布到 {} 个 IPNS key...", keys.len());
+
+        let api = match &self.api_config {
+            Some(c) => &c.api_url,
+            None => anyhow::bail!("未配置远程 IPFS API"),
+        };
+
+        let tasks = keys.iter().map(|&key_name| {
+            let client = &self.client;
+            let timeout = self.timeout;
+            let api_url = api.clone();
+            async move {
+                let arg_path = format!("/ipfs/{}", cid);
+                let url = format!(
+                    "{}/api/v0/name/publish?arg={}&key={}&allow-offline=false&resolve=true&lifetime={}&ttl=1h",
+                    api_url,
+                    urlencoding::encode(&arg_path),
+                    urlencoding::encode(key_name),
+                    urlencoding::encode(lifetime)
+                );
+
+                let resp = client
+                    .post(&url)
+                    .header("User-Agent", "diap-rs-sdk/0.2")
+                    .timeout(timeout)
+                    .send()
+                    .await?;
+
+                if !resp.status().is_success() {
+                    let status = resp.status();
+                    let t = resp.text().await.unwrap_or_default();
+                    anyhow::bail!("Key {} IPNS 发布失败：{} - {}", key_name, status, t);
+                }
+
+                let v: serde_json::Value = resp.json().await?;
+                let name = v
+                    .get("Name")
+                    .and_then(|x| x.as_str())
+                    .unwrap_or_default()
+                    .to_string();
+                let value = v
+                    .get("Value")
+                    .and_then(|x| x.as_str())
+                    .unwrap_or_default()
+                    .to_string();
+
+                Ok(IpnsPublishResult {
+                    name,
+                    value,
+                    published_at: chrono::Utc::now().to_rfc3339(),
+                })
+            }
+        });
+
+        let results = join_all(tasks).await;
+        let (successes, failures): (Vec<_>, Vec<_>) = results.into_iter().partition(|r| r.is_ok());
+
+        if !failures.is_empty() {
+            log::warn!("⚠️ {}/{} key 发布失败", failures.len(), keys.len());
+        }
+
+        log::info!("✅ {}/{} key 发布成功", successes.len(), keys.len());
+
+        Ok(successes.into_iter().filter_map(|r| r.ok()).collect())
+    }
+
+    /// 广播 IPNS 记录到 DHT（加速传播）
+    /// 
+    /// # 参数
+    /// - `ipns_name`: 要广播的 IPNS 名称（PeerID）
+    /// 
+    /// # 说明
+    /// 通过订阅自己的 IPNS 记录来触发 DHT 广播
+    pub async fn broadcast_to_dht(
+        &self,
+        ipns_name: &str,
+    ) -> Result<()> {
+        log::info!("📡 广播 IPNS 记录 {} 到 DHT...", ipns_name);
+
+        let api = match &self.api_config {
+            Some(c) => &c.api_url,
+            None => anyhow::bail!("未配置远程 IPFS API"),
+        };
+
+        // 使用 name/pubsub/pub 触发广播
+        let url = format!(
+            "{}/api/v0/name/pubsub/pub?arg={}",
+            api,
+            urlencoding::encode(&format!("/ipns/{}", ipns_name))
+        );
+
+        let resp = self
+            .client
+            .post(&url)
+            .header("User-Agent", "diap-rs-sdk/0.2")
+            .send()
+            .await
+            .context("发送 DHT 广播请求失败")?;
+
+        if resp.status().is_success() {
+            log::info!("✅ IPNS 记录已广播到 DHT");
+            Ok(())
+        } else {
+            let status = resp.status();
+            let t = resp.text().await.unwrap_or_default();
+            log::warn!("⚠️ DHT 广播失败：{} - {}", status, t);
+            Ok(()) // 不阻塞主流程
+        }
+    }
+
     /// 解析 IPNS 名称为 CID
     /// 支持两种方式：
     /// 1) 优先通过远程 IPFS API (/api/v0/name/resolve)
