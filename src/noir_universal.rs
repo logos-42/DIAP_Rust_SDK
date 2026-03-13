@@ -153,6 +153,12 @@ impl UniversalNoirManager {
                 self.embedded_manager = Some(EmbeddedNoirZKPManager::new()?);
             }
 
+            #[cfg(not(feature = "embedded-noir"))]
+            NoirBackend::Embedded => {
+                log::warn!("⚠️  嵌入Noir后端不可用，请启用 embedded-noir feature");
+                return Err(anyhow::anyhow!("嵌入Noir后端不可用，请启用 embedded-noir feature"));
+            }
+
             #[cfg(feature = "external-noir")]
             NoirBackend::External => {
                 log::info!("🔧 初始化外部Noir后端");
@@ -204,6 +210,11 @@ impl UniversalNoirManager {
                 } else {
                     Err(anyhow::anyhow!("嵌入管理器未初始化"))
                 }
+            }
+
+            #[cfg(not(feature = "embedded-noir"))]
+            NoirBackend::Embedded => {
+                return Err(anyhow::anyhow!("嵌入Noir后端不可用，请启用 embedded-noir feature"));
             }
 
             #[cfg(feature = "external-noir")]
@@ -261,6 +272,11 @@ impl UniversalNoirManager {
                 } else {
                     Err(anyhow::anyhow!("嵌入管理器未初始化"))
                 }
+            }
+
+            #[cfg(not(feature = "embedded-noir"))]
+            NoirBackend::Embedded => {
+                return Err(anyhow::anyhow!("嵌入Noir后端不可用，请启用 embedded-noir feature"));
             }
 
             #[cfg(feature = "external-noir")]
