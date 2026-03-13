@@ -652,12 +652,12 @@ impl PubsubAuthenticator {
 
     /// 序列化消息为字节
     pub fn serialize_message(message: &AuthenticatedMessage) -> Result<Vec<u8>> {
-        bincode::serialize(message).context("序列化消息失败")
+        serde_json::to_vec(message).context("序列化消息失败")
     }
 
     /// 反序列化消息
     pub fn deserialize_message(data: &[u8]) -> Result<AuthenticatedMessage> {
-        bincode::deserialize(data).context("反序列化消息失败")
+        serde_json::from_slice(data).context("反序列化消息失败")
     }
 
     /// 获取缓存统计

@@ -9,6 +9,9 @@ pub mod key_manager;
 // IPFS 客户端
 pub mod ipfs_client;
 
+// IPNS 管理器
+pub mod ipns_manager;
+
 // 内置 IPFS 节点管理器（Kubo 特性暂未启用）
 pub mod kubo_installer;
 
@@ -76,6 +79,7 @@ pub use agent_auth::AgentAuthManager;
 pub use did_builder::DIDDocument;
 pub use identity_manager::{IdentityRegistration, ServiceInfo};
 pub use ipfs_client::IpfsClient;
+pub use ipns_manager::{IpnsManager, IpnsPublishResult, KeyInfo};
 pub use agent_verification::{
     AgentVerificationManager, AgentVerificationRequest, AgentVerificationStatus,
 };
