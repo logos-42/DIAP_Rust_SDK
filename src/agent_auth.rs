@@ -1,4 +1,4 @@
-use crate::{AgentInfo, IdentityManager, IdentityRegistration, KeyPair, ServiceInfo};
+﻿use crate::{AgentInfo, IdentityManager, IdentityRegistration, KeyPair, ServiceInfo};
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
@@ -133,7 +133,7 @@ impl AgentAuthManager {
 
         // 获取DID文档
         let did_document =
-            crate::get_did_document_from_cid(&self.identity_manager.ipfs_client(), cid).await?;
+            crate::did_builder::get_did_document_from_cid(&self.identity_manager.ipfs_client(), cid).await?;
 
         // 生成证明
         let proof =
