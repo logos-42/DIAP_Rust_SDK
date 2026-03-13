@@ -7,7 +7,7 @@ use std::path::PathBuf;
 
 // 导入不同后端的模块
 #[cfg(feature = "embedded-noir")]
-use crate::noir_embedded::EmbeddedNoirZKPManager;
+use crate::noir_zkp::NoirZKPManager as EmbeddedNoirZKPManager;
 
 #[cfg(feature = "external-noir")]
 use crate::noir_zkp::NoirZKPManager;
@@ -186,7 +186,7 @@ impl UniversalNoirManager {
             NoirBackend::Embedded => {
                 if let Some(ref mut manager) = self.embedded_manager {
                     // 转换输入类型
-                    let embedded_inputs = crate::noir_embedded::NoirProverInputs {
+                    let embedded_inputs = NoirProverInputs {
                         expected_did_hash: inputs.expected_did_hash.clone(),
                         public_key_hash: inputs.public_key_hash.clone(),
                         nonce_hash: inputs.nonce_hash.clone(),
