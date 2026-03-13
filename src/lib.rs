@@ -36,10 +36,6 @@ pub mod key_generator;
 // Iroh P2P 通信器
 pub mod iroh_communicator;
 
-// 通用 Noir 管理器（需要 noir-universal 特征）
-#[cfg(feature = "noir-universal")]
-pub mod noir_universal;
-
 // 加密 Peer ID
 pub mod encrypted_peer_id;
 
@@ -85,9 +81,6 @@ pub use agent_verification::{
 };
 pub use did_builder::{VerificationMethod, Service};
 pub use did_cache::CacheStats;
-
-#[cfg(feature = "noir-universal")]
-pub use noir_universal::UniversalNoirManager;
 
 /// SDK 版本
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

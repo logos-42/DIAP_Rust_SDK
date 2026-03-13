@@ -100,12 +100,12 @@ n0-snafu = "0.2.1"
 
 [features]
 default = ["iroh"]
-embedded-noir = []  # 启用嵌入 Noir 电路支持（需要修复 API）
-external-noir = []  # 启用外部 Noir 支持（需要修复 API）
+embedded-noir = []  # 启用嵌入 Noir 电路支持
+external-noir = []  # 启用外部 Noir 支持（需要安装 nargo）
 arkworks-zkp = []  # 启用 arkworks ZKP 支持（向后兼容）
 iroh = []  # 启用 Iroh P2P 通信支持（默认）
 noir-precompiled = []  # 启用预编译 Noir 电路支持
-noir-universal = []  # 启用通用 Noir 管理器（需要修复 API）
+# noir-universal 已禁用 - 该模块是高级包装器，核心 ZKP 功能由 noir_zkp 提供
 
 [dev-dependencies]
 tokio-test = "0.4"
