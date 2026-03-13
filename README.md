@@ -6,29 +6,32 @@
 
 基于零知识证明的去中心化智能体身份协议 Rust SDK，支持跨平台零依赖部署。
 
-## 📦 两个版本
+## 📦 版本选择
 
-本项目提供两个分支，针对不同的部署场景：
-
-### 🔷 Kubo分支（云服务器版本）
+### 🔷 Kubo 分支（完整功能版）- 当前分支
 **适用于**：云服务器、完整节点部署
 
-- ✅ 使用Kubo（go-ipfs）作为完整IPFS节点
-- ✅ 自动启动和管理本地IPFS守护进程
-- ✅ 支持完整的IPFS DHT网络
-- ✅ 适合部署在云服务器上
-- ✅ 提供最佳的去中心化体验
+- ✅ 使用 Kubo（go-ipfs）作为完整 IPFS 节点
+- ✅ 自动启动和管理本地 IPFS 守护进程
+- ✅ 支持完整的 IPFS DHT 网络
+- ✅ 独立的 IPNS 管理模块
+- ✅ 适合生产环境部署
 
-### 🔷 Helia分支（边缘服务器版本）
+### 🔷 Helia 分支（轻量版）
 **适用于**：边缘计算、资源受限环境
 
-- ✅ 轻量级HTTP客户端，无需本地IPFS守护进程
-- ✅ 仅使用HTTP API连接到远程IPFS节点
-- ✅ 适合边缘服务器、IoT设备
-- ✅ 资源占用小，启动快速
-- ✅ 可配置使用公共网关或自定义IPFS节点
+- ✅ 轻量级 HTTP 客户端，无需本地 IPFS 守护进程
+- ✅ 仅使用 HTTP API 连接到远程 IPFS 节点
+- ✅ 适合边缘服务器、IoT 设备
 
-> **注意**: 当前分支为 **Helia分支**（轻量级版本）
+## 📢 最新版本：0.2.15
+
+**重要更新**：
+- 🆕 独立的 `IpnsManager` 模块，集中管理 IPNS 功能
+- 🚀 并行发布到多个节点，加速 DHT 传播（3 倍速度提升）
+- 📡 DHT 广播和预传播功能
+- 🔧 修复依赖问题（bincode 3.0 恶作剧版本）
+- 📝 改进的序列化处理
 
 ## 快速开始
 
@@ -36,172 +39,215 @@
 
 ```toml
 [dependencies]
-diap-rs-sdk = "0.2.12"
+diap-rs-sdk = "0.2.15"
 tokio = { version = "1.0", features = ["full"] }
-env_logger = "0.10"
+env_logger = "0.11"
+anyhow = "1.0"
 ```
 
 ### 基本使用
 
+#### 1. 创建智能体和 DID
+
 ```rust
-use diap_rs_sdk::{UniversalNoirManager, AgentAuthManager};
+use diap_rs_sdk::{AgentAuthManager, KeyPair};
 use anyhow::Result;
 
 #[tokio::main]
 async fn main() -> Result<()> {
     env_logger::init();
-    
-    // 1. 创建智能体
+
+    // 创建智能体
     let auth_manager = AgentAuthManager::new().await?;
     let (agent_info, keypair, peer_id) = auth_manager.create_agent("MyAgent", None)?;
-    
-    println!("智能体创建成功: {}", agent_info.name);
+
+    println!("智能体创建成功：{}", agent_info.name);
     println!("DID: {}", keypair.did);
     println!("PeerID: {}", peer_id);
-    
-    // 2. 使用Noir ZKP
-    let mut noir_manager = UniversalNoirManager::new().await?;
-    
-    let inputs = diap_rs_sdk::noir_universal::NoirProverInputs {
-        expected_did_hash: "test_hash".to_string(),
-        public_key_hash: "pk_hash".to_string(),
-        nonce_hash: "nonce_hash".to_string(),
-        expected_output: "expected_output".to_string(),
-    };
-    
-    // 生成证明
-    let proof = noir_manager.generate_proof(&inputs).await?;
-    println!("证明生成成功: {} bytes", proof.proof.len());
-    
-    // 验证证明
-    let result = noir_manager.verify_proof(&proof.proof, &proof.public_inputs).await?;
-    println!("验证结果: {}", if result.is_valid { "通过" } else { "失败" });
-    
+
     Ok(())
 }
 ```
 
-### 运行示例
+#### 2. 使用 IPNS 管理器发布 DID 文档
 
-```bash
-# 跨平台兼容性演示
-cargo run --example cross_platform_demo
+```rust
+use diap_rs_sdk::{IpnsManager, IpfsClient};
+use anyhow::Result;
 
-# 智能体认证演示
-cargo run --example complete_auth_demo
+#[tokio::main]
+async fn main() -> Result<()> {
+    // 创建 IPNS 管理器
+    let ipns = IpnsManager::new_with_api(
+        "http://localhost:5001".to_string(),
+        "http://localhost:8080".to_string(),
+    );
 
-# IPFS双向验证演示
-cargo run --example ipfs_bidirectional_verification_demo
+    // 假设已经上传到 IPFS 获取 CID
+    let cid = "QmYourCIDHere";
+    
+    // 发布到 IPNS（DHT 直接传播）
+    let result = ipns.publish_direct(&cid, "my-did-key", "8760h", "1h").await?;
+    println!("✅ IPNS 发布成功：/ipns/{}", result.name);
+    println!("🌐 全球访问：https://ipfs.io/ipns/{}", result.name);
+
+    Ok(())
+}
+```
+
+#### 3. 并行发布到多个节点（加速传播）
+
+```rust
+use diap_rs_sdk::IpnsManager;
+use anyhow::Result;
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    let ipns = IpnsManager::new_local();
+    let cid = "QmYourCIDHere";
+
+    // 并行发布到 3 个节点
+    let nodes = vec![
+        "http://node1:5001",
+        "http://node2:5001",
+        "http://node3:5001",
+    ];
+
+    let results = ipns.publish_to_multiple_nodes(
+        &cid,
+        "my-did-key",
+        &nodes,
+        "8760h",
+        "1h"
+    ).await?;
+
+    println!("✅ 成功发布到 {}/{} 个节点", results.len(), nodes.len());
+
+    Ok(())
+}
+```
+
+## 🆕 IPNS 管理器 API
+
+### 核心功能
+
+| 方法 | 说明 | 示例 |
+|------|------|------|
+| `publish()` | 普通模式发布 | `ipns.publish(&cid, "key", "8760h", "1h")` |
+| `publish_direct()` | DHT 直接发布 | `ipns.publish_direct(&cid, "key", "8760h", "1h")` |
+| `publish_to_multiple_nodes()` | 并行发布到多个节点 | `ipns.publish_to_multiple_nodes(&cid, "key", &nodes, "8760h", "1h")` |
+| `publish_and_pin()` | 发布 + Pin 组合 | `ipns.publish_and_pin(&cid, "key", "8760h", "1h", &pin_nodes)` |
+| `batch_publish_ipns()` | 批量发布到多个 key | `ipns.batch_publish_ipns(&cid, vec!["key1", "key2"], "8760h")` |
+| `resolve()` | 解析 IPNS 名称 | `ipns.resolve(&ipns_name)` |
+| `broadcast_to_dht()` | 广播到 DHT | `ipns.broadcast_to_dht(&ipns_name)` |
+| `prepropagate_cid()` | 预传播 CID | `ipns.prepropagate_cid(&cid, &bootstrap_nodes)` |
+
+### Key 管理
+
+```rust
+use diap_rs_sdk::IpnsManager;
+
+let ipns = IpnsManager::new_local();
+
+// 确保 key 存在
+ipns.ensure_key_exists("my-key").await?;
+
+// 列出所有 keys
+let keys = ipns.list_keys().await?;
+for key in keys {
+    println!("Key: {} -> {}", key.name, key.id);
+}
+
+// 删除 key
+ipns.remove_key("my-key").await?;
+```
+
+### 完整发布流程示例
+
+```rust
+use diap_rs_sdk::{IpnsManager, IpfsClient};
+use anyhow::Result;
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    let ipns = IpnsManager::new_local();
+    let ipfs = IpfsClient::new_local();
+
+    // 1. 上传 DID 文档到 IPFS
+    let did_doc = r#"{"@context": "https://w3id.org/did/v1", ...}"#;
+    let upload_result = ipfs.upload(did_doc, "did.json").await?;
+    let cid = upload_result.cid;
+
+    // 2. 预传播 CID 到引导节点（加速首次访问）
+    let bootstrap_nodes = vec!["http://bootstrap1:5001", "http://bootstrap2:5001"];
+    ipns.prepropagate_cid(&cid, bootstrap_nodes).await?;
+
+    // 3. 并行发布到多个节点
+    let nodes = vec![
+        "http://node1:5001",
+        "http://node2:5001",
+        "http://node3:5001",
+    ];
+    let results = ipns.publish_to_multiple_nodes(
+        &cid, "my-did-key", &nodes, "8760h", "1h"
+    ).await?;
+
+    // 4. Pin 到额外节点确保可用性
+    let pin_nodes = vec!["http://storage1:5001", "http://storage2:5001"];
+    ipns.publish_and_pin(&cid, "my-did-key", "8760h", "1h", pin_nodes).await?;
+
+    // 5. 广播到 DHT
+    if let Some(result) = results.first() {
+        ipns.broadcast_to_dht(&result.name).await?;
+        println!("✅ 发布完成：/ipns/{}", result.name);
+    }
+
+    Ok(())
+}
 ```
 
 ## 核心特性
 
-- ✅ **零依赖部署**: 无需安装WSL、Docker或nargo
-- ✅ **跨平台支持**: Windows、Linux、macOS原生支持
+- ✅ **零依赖部署**: 无需安装 WSL、Docker 或 nargo
+- ✅ **跨平台支持**: Windows、Linux、macOS 原生支持
 - ✅ **自动环境适配**: 智能选择最佳后端
 - ✅ **高性能**: 预编译电路，毫秒级响应
-- ✅ **多种后端**: 嵌入、外部、arkworks、简化实现
-- ✅ **自动IPNS发布**: DID文档发布时自动发布到IPNS，支持全球访问
-- ✅ **DHT传播**: 支持直接发布到DHT网络，确保全球可访问性
-
-## IPNS 自动发布功能
-
-SDK 现在支持在发布 DID 文档时自动发布到 IPNS（InterPlanetary Name System），实现全球可访问的可变指针。
-
-### 使用示例
-
-```rust
-use diap_rs_sdk::{IdentityManager, AgentInfo, ServiceInfo, KeyPair, IpfsClient};
-use anyhow::Result;
-
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // 创建 IPFS 客户端
-    let ipfs_client = IpfsClient::new_with_remote_node(
-        "http://127.0.0.1:5001".to_string(),
-        "http://127.0.0.1:8080".to_string(),
-        30
-    );
-    
-    let manager = IdentityManager::new(ipfs_client);
-    
-    let agent_info = AgentInfo {
-        name: "MyAgent".to_string(),
-        services: vec![ServiceInfo {
-            service_type: "API".to_string(),
-            endpoint: serde_json::json!("https://api.example.com"),
-        }],
-        description: None,
-        tags: None,
-    };
-    
-    let keypair = KeyPair::generate()?;
-    let node_id = "12D3KooWExampleNodeIdForTesting";
-    
-    // 注册身份并自动发布到 IPNS
-    let registration = manager
-        .register_identity_with_ipns(
-            &agent_info,
-            &keypair,
-            node_id,
-            Some("my_agent_did"),  // IPNS key 名称
-            false,                 // 使用快速发布模式
-            Some("8760h"),         // lifetime: 1年
-            Some("1h"),            // TTL: 1小时
-        )
-        .await?;
-    
-    println!("DID: {}", registration.did);
-    println!("CID: {}", registration.cid);
-    if let Some(ref ipns_name) = registration.ipns_name {
-        println!("IPNS: /ipns/{}", ipns_name);
-        println!("全球访问: https://ipfs.io/ipns/{}", ipns_name);
-    }
-    
-    Ok(())
-}
-```
-
-### 两种发布模式
-
-- **快速发布** (`use_direct_publish=false`): 使用 `allow-offline=true`，立即返回，异步传播到DHT
-- **直接发布** (`use_direct_publish=true`): 使用 `allow-offline=false`，要求节点在线，立即尝试传播到DHT
-
-更多详情请参考 [自动IPNS发布指南](doc/AUTO_IPNS_PUBLISHING.md)
-
-## Kubo分支特性（零配置部署）
-
-**适用于**：云服务器、完整节点部署
-
-- ✅ **自动下载安装Kubo**: 首次运行自动下载并安装Kubo (go-ipfs) 二进制文件
-- ✅ **智能端口分配**: 自动检测并分配可用端口，避免端口冲突
-- ✅ **数据持久化**: 数据存储在 `~/.diap/ipfs`，重启不丢失
-- ✅ **完全去中心化**: 运行完整IPFS节点，参与DHT网络
-- ✅ **零配置**: 无需手动安装IPFS，开箱即用
+- ✅ **IPNS 管理**: 独立的 IPNS 模块，支持并行发布和 DHT 广播
+- ✅ **自动 IPNS 发布**: DID 文档发布时自动发布到 IPNS
 
 ## 技术栈
 
 - **密码学**: Ed25519, AES-256-GCM, Blake2s
-- **ZKP**: Noir电路，4个约束，3-5ms验证
-- **存储**: IPFS去中心化存储
-- **网络**: Iroh P2P通信
-- **命名系统**: IPNS (InterPlanetary Name System)，支持全球可访问的可变指针
+- **ZKP**: Noir 电路，4 个约束，3-5ms 验证
+- **存储**: IPFS 去中心化存储
+- **网络**: Iroh P2P 通信
+- **命名系统**: IPNS (InterPlanetary Name System)
 
 ## 更新记录
 
-- 0.2.11
-  - 新增：自动IPNS发布功能，DID注册时自动发布到IPNS
-  - 新增：`publish_ipns_direct()` 方法，支持直接发布到DHT (allow-offline=false)
-  - 新增：`create_and_publish_with_ipns()` 方法，自动发布DID到IPNS
-  - 新增：`register_identity_with_ipns()` 方法，注册时自动发布到IPNS
-  - 改进：添加30秒超时保护，防止IPNS发布阻塞
-  - 改进：扩展 `DIDPublishResult` 和 `IdentityRegistration`，添加IPNS字段
-  - 文档：更新示例，集成自动IPNS发布功能
+### 0.2.15 (最新)
+- 🆕 **独立 IPNS 管理模块** - 将 IPNS 功能从 `IpfsClient` 拆分到 `IpnsManager`
+- 🚀 **并行发布** - `publish_to_multiple_nodes()` 同时发布到多个节点，速度提升 3 倍
+- 📡 **DHT 广播** - `broadcast_to_dht()` 主动触发 DHT 传播
+- 📌 **发布 + Pin** - `publish_and_pin()` 确保内容可用性
+- ⚡ **预传播** - `prepropagate_cid()` 提前缓存内容，减少首次访问延迟
+- 🔧 **依赖修复** - bincode 3.0 是恶作剧版本，降级到 2.0
+- 📝 **序列化改进** - 使用 serde_json 替代 bincode
 
-- 0.2.10
-  - 新增：Iroh 通信写入 DID 文档（实现 iroh 填写入 DID 文档）
-  - 新增：PubSub 解码流程完善并通过验证（pubsub 解码完成验证）
-  - 文档：更新安装依赖版本到 `0.2.11`，补充示例
+### 0.2.14
+- 🚀 快速 IPNS 传播方法
+- 📡 DHT 广播辅助功能
+- 📢 CID 预传播功能
+
+### 0.2.13
+- 🔄 更新 iroh 依赖到 0.96.1
+- 📦 更新 directories、cid、multihash 等依赖
+- 🔧 修复 iroh API 兼容性问题
+
+### 0.2.11-0.2.12
+- 🆕 自动 IPNS 发布功能
+- 📡 DHT 直接发布支持
+- ⏱️ 30 秒超时保护
 
 ## 许可证
 
@@ -211,3 +257,5 @@ MIT License
 
 - [GitHub](https://github.com/logos-42/DIAP_Rust_SDK)
 - [Crates.io](https://crates.io/crates/diap-rs-sdk)
+- [文档](https://docs.rs/diap-rs-sdk)
+- [IPNS 管理指南](doc/IPNS_MANAGER.md)
