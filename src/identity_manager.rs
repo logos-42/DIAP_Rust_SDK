@@ -546,7 +546,7 @@ mod tests {
 
         // 验证身份
         let verification = manager
-            .verify_identity_with_zkp(&registration.cid, &proof.proof_bytes, nonce)
+            .verify_identity_with_zkp(&registration.cid, &proof, nonce)
             .await
             .unwrap();
 
