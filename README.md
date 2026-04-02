@@ -206,6 +206,84 @@ async fn main() -> Result<()> {
 }
 ```
 
+#### 4. 添加智能体档案、钱包地址和智能体钱包
+
+```rust
+use diap_rs_sdk::{
+    AgentAuthManager, 
+    AgentProfile, 
+    CryptoWallets, 
+    AgentWallet,
+    LinkedDomains,
+};
+use anyhow::Result;
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    // 创建智能体
+    let auth_manager = AgentAuthManager::new().await?;
+    let (agent_info, keypair, peer_id) = auth_manager.create_agent("MyAgent", None)?;
+
+    // 创建 DID 构建器
+    let mut did_builder = diap_rs_sdk::DIDBuilder::new(
+        diap_rs_sdk::IpfsClient::new_local()
+    );
+
+    // 方式 1: 使用结构化 API 添加智能体档案（头像、名称等）
+    let profile = AgentProfile::new()
+        .with_avatar("https://example.com/avatars/agent-123.png")
+        .with_name("AI Assistant")
+        .with_description("Your intelligent assistant")
+        .with_homepage("https://agent.example.com");
+    
+    did_builder.add_agent_profile(profile);
+
+    // 方式 2: 快捷方式添加头像
+    did_builder.with_avatar("https://example.com/avatar.png");
+
+    // 添加多链钱包地址
+    let wallets = CryptoWallets::new()
+        .with_ethereum("0xAb5801a7D398351b8bE11C439e05C5B3259aeC9B", Some("Main Wallet"))
+        .with_bitcoin("bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh", None)
+        .with_solana("7EqQdEUaxGGeXNbR1M3P6v3bSfFzWLKq3eMuHnVNPYqA", None);
+    
+    did_builder.add_crypto_wallets(wallets);
+
+    // 快捷方式添加 Ethereum 钱包
+    did_builder.with_ethereum_wallet("0x...", Some("Default"));
+
+    // 添加智能体钱包（支持消费限制、权限控制）
+    let agent_wallet = AgentWallet::new("0xAgentWalletAddress", "ethereum")
+        .with_capabilities(vec!["payment".to_string(), "signing".to_string(), "defi".to_string()])
+        .with_spending_limit("0.1 ETH/day")
+        .with_requires_approval(true)
+        .with_allowed_contracts(vec!["0xContract1...".to_string(), "0xContract2...".to_string()]);
+    
+    did_builder.add_agent_wallet(agent_wallet);
+
+    // 添加链接域名
+    did_builder.add_linked_domains(LinkedDomains::new(vec!["https://agent.example.com".to_string()]));
+
+    // 发布 DID 文档
+    let result = did_builder.create_and_publish(&keypair, &peer_id).await?;
+    
+    println!("✅ DID 发布成功");
+    println!("  DID: {}", result.did);
+    println!("  CID: {}", result.cid);
+
+    Ok(())
+}
+```
+
+### 支持的服务类型
+
+| 服务类型 | 结构体 | 用途 |
+|----------|--------|------|
+| `AgentProfile` | `AgentProfile` | 智能体档案（头像、名称、描述等） |
+| `CryptoWallets` | `CryptoWallets` | 多链加密货币钱包地址 |
+| `AgentWallet` | `AgentWallet` | 智能体钱包（带权限控制） |
+| `LinkedDomains` | `LinkedDomains` | 链接域名服务 |
+
 ## 核心特性
 
 - ✅ **零依赖部署**: 无需安装 WSL、Docker 或 nargo
@@ -233,6 +311,14 @@ async fn main() -> Result<()> {
 - ⚡ **预传播** - `prepropagate_cid()` 提前缓存内容，减少首次访问延迟
 - 🔧 **依赖修复** - bincode 3.0 是恶作剧版本，降级到 2.0
 - 📝 **序列化改进** - 使用 serde_json 替代 bincode
+
+### 0.2.16 (开发中)
+- 🆕 **DID 文档扩展支持** - 添加智能体档案、加密货币钱包、智能体钱包服务类型
+  - `AgentProfile`: 支持头像 URL、名称、描述等智能体档案信息
+  - `CryptoWallets`: 支持多链钱包地址（Ethereum、Bitcoin、Solana 等）
+  - `AgentWallet`: 支持智能体钱包配置（消费限制、权限控制、合约白名单）
+  - `LinkedDomains`: 支持链接域名服务
+- 🛠️ **DIDBuilder 便捷方法** - 添加 `add_agent_profile()`, `add_crypto_wallets()`, `add_agent_wallet()`, `with_avatar()` 等快捷 API
 
 ### 0.2.14
 - 🚀 快速 IPNS 传播方法

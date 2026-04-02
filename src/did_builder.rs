@@ -1,4 +1,4 @@
-// DIAP Rust SDK - 简化DID文档构建模块
+﻿// DIAP Rust SDK - 简化DID文档构建模块
 // 使用did:key格式 + ZKP绑定验证（无需IPNS）
 
 use crate::encrypted_peer_id::{encrypt_peer_id, EncryptedPeerID};
@@ -67,6 +67,302 @@ pub struct Service {
     #[serde(rename = "networkAddresses", skip_serializing_if = "Option::is_none")]
     pub network_addresses: Option<Vec<String>>,
 }
+// ============== 新增服务类型定义 ==============
+
+/// 智能体档案信息（用于头像、名称等）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentProfile {
+    /// 头像 URL
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub avatar: Option<String>,
+
+    /// 智能体名称
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+
+    /// 智能体描述
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+
+    /// 主页 URL
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub homepage: Option<String>,
+
+    /// 其他元数据（可扩展）
+    #[serde(flatten)]
+    pub extra: std::collections::BTreeMap<String, serde_json::Value>,
+}
+
+impl AgentProfile {
+    /// 创建新的智能体档案
+    pub fn new() -> Self {
+        Self {
+            avatar: None,
+            name: None,
+            description: None,
+            homepage: None,
+            extra: std::collections::BTreeMap::new(),
+        }
+    }
+
+    /// 设置头像 URL
+    pub fn with_avatar(mut self, avatar: impl Into<String>) -> Self {
+        self.avatar = Some(avatar.into());
+        self
+    }
+
+    /// 设置名称
+    pub fn with_name(mut self, name: impl Into<String>) -> Self {
+        self.name = Some(name.into());
+        self
+    }
+
+    /// 设置描述
+    pub fn with_description(mut self, description: impl Into<String>) -> Self {
+        self.description = Some(description.into());
+        self
+    }
+
+    /// 设置主页 URL
+    pub fn with_homepage(mut self, homepage: impl Into<String>) -> Self {
+        self.homepage = Some(homepage.into());
+        self
+    }
+
+    /// 添加额外字段
+    pub fn with_extra(mut self, key: impl Into<String>, value: serde_json::Value) -> Self {
+        self.extra.insert(key.into(), value);
+        self
+    }
+}
+
+impl Default for AgentProfile {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// 加密货币钱包地址
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CryptoWallet {
+    /// 钱包地址
+    pub address: String,
+
+    /// 钱包类型/标签
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
+}
+
+/// 多链钱包集合
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CryptoWallets {
+    /// Ethereum 钱包
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ethereum: Option<CryptoWallet>,
+
+    /// Bitcoin 钱包
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bitcoin: Option<CryptoWallet>,
+
+    /// Solana 钱包
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub solana: Option<CryptoWallet>,
+
+    /// Polygon 钱包
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub polygon: Option<CryptoWallet>,
+
+    /// BSC 钱包
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bsc: Option<CryptoWallet>,
+
+    /// 其他钱包（自定义）
+    #[serde(flatten)]
+    pub extra: std::collections::BTreeMap<String, serde_json::Value>,
+}
+
+impl CryptoWallets {
+    /// 创建新的多链钱包
+    pub fn new() -> Self {
+        Self {
+            ethereum: None,
+            bitcoin: None,
+            solana: None,
+            polygon: None,
+            bsc: None,
+            extra: std::collections::BTreeMap::new(),
+        }
+    }
+
+    /// 添加 Ethereum 钱包
+    pub fn with_ethereum(mut self, address: impl Into<String>, label: Option<String>) -> Self {
+        self.ethereum = Some(CryptoWallet {
+            address: address.into(),
+            label,
+        });
+        self
+    }
+
+    /// 添加 Bitcoin 钱包
+    pub fn with_bitcoin(mut self, address: impl Into<String>, label: Option<String>) -> Self {
+        self.bitcoin = Some(CryptoWallet {
+            address: address.into(),
+            label,
+        });
+        self
+    }
+
+    /// 添加 Solana 钱包
+    pub fn with_solana(mut self, address: impl Into<String>, label: Option<String>) -> Self {
+        self.solana = Some(CryptoWallet {
+            address: address.into(),
+            label,
+        });
+        self
+    }
+
+    /// 添加 Polygon 钱包
+    pub fn with_polygon(mut self, address: impl Into<String>, label: Option<String>) -> Self {
+        self.polygon = Some(CryptoWallet {
+            address: address.into(),
+            label,
+        });
+        self
+    }
+
+    /// 添加 BSC 钱包
+    pub fn with_bsc(mut self, address: impl Into<String>, label: Option<String>) -> Self {
+        self.bsc = Some(CryptoWallet {
+            address: address.into(),
+            label,
+        });
+        self
+    }
+
+    /// 添加自定义钱包
+    pub fn with_extra(mut self, chain: impl Into<String>, address: impl Into<String>, label: Option<String>) -> Self {
+        let wallet = CryptoWallet {
+            address: address.into(),
+            label,
+        };
+        self.extra.insert(chain.into(), serde_json::to_value(wallet).unwrap_or_default());
+        self
+    }
+}
+
+impl Default for CryptoWallets {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// 智能体钱包（支持消费限制、权限控制等）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentWallet {
+    /// 钱包地址
+    pub address: String,
+
+    /// 区块链网络
+    pub network: String,
+
+    /// 钱包能力列表
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub capabilities: Option<Vec<String>>,
+
+    /// 每日消费限制（如 "0.1 ETH"）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub spending_limit: Option<String>,
+
+    /// 是否需要审批
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub requires_approval: Option<bool>,
+
+    /// 允许交互的合约地址列表
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub allowed_contracts: Option<Vec<String>>,
+
+    /// 其他配置
+    #[serde(flatten)]
+    pub extra: std::collections::BTreeMap<String, serde_json::Value>,
+}
+
+impl AgentWallet {
+    /// 创建新的智能体钱包
+    pub fn new(address: impl Into<String>, network: impl Into<String>) -> Self {
+        Self {
+            address: address.into(),
+            network: network.into(),
+            capabilities: None,
+            spending_limit: None,
+            requires_approval: None,
+            allowed_contracts: None,
+            extra: std::collections::BTreeMap::new(),
+        }
+    }
+
+    /// 设置能力列表
+    pub fn with_capabilities(mut self, capabilities: Vec<String>) -> Self {
+        self.capabilities = Some(capabilities);
+        self
+    }
+
+    /// 添加能力
+    pub fn add_capability(mut self, capability: impl Into<String>) -> Self {
+        self.capabilities
+            .get_or_insert_with(Vec::new)
+            .push(capability.into());
+        self
+    }
+
+    /// 设置每日消费限制
+    pub fn with_spending_limit(mut self, limit: impl Into<String>) -> Self {
+        self.spending_limit = Some(limit.into());
+        self
+    }
+
+    /// 设置是否需要审批
+    pub fn with_requires_approval(mut self, requires: bool) -> Self {
+        self.requires_approval = Some(requires);
+        self
+    }
+
+    /// 设置允许的合约列表
+    pub fn with_allowed_contracts(mut self, contracts: Vec<String>) -> Self {
+        self.allowed_contracts = Some(contracts);
+        self
+    }
+
+    /// 添加允许的合约
+    pub fn add_allowed_contract(mut self, contract: impl Into<String>) -> Self {
+        self.allowed_contracts
+            .get_or_insert_with(Vec::new)
+            .push(contract.into());
+        self
+    }
+
+    /// 添加额外配置
+    pub fn with_extra(mut self, key: impl Into<String>, value: serde_json::Value) -> Self {
+        self.extra.insert(key.into(), value);
+        self
+    }
+}
+
+/// 链接域名服务
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LinkedDomains {
+    /// 域名列表
+    pub domains: Vec<String>,
+}
+
+impl LinkedDomains {
+    /// 创建新的链接域名
+    pub fn new(domains: Vec<String>) -> Self {
+        Self { domains }
+    }
+}
+
+// =============================================
+
 
 /// DID构建器
 pub struct DIDBuilder {
@@ -143,6 +439,44 @@ impl DIDBuilder {
         self.iroh_node_id = Some(node_id.to_vec());
         self
     }
+    // ============== 新增便捷方法 ==============
+
+    /// 添加智能体档案服务（头像、名称等）
+    pub fn add_agent_profile(&mut self, profile: AgentProfile) -> &mut Self {
+        let endpoint = serde_json::to_value(&profile).unwrap_or_default();
+        self.add_service("AgentProfile", endpoint)
+    }
+
+    /// 添加多链钱包服务
+    pub fn add_crypto_wallets(&mut self, wallets: CryptoWallets) -> &mut Self {
+        let endpoint = serde_json::to_value(&wallets).unwrap_or_default();
+        self.add_service("CryptoWallets", endpoint)
+    }
+
+    /// 添加智能体钱包服务
+    pub fn add_agent_wallet(&mut self, wallet: AgentWallet) -> &mut Self {
+        let endpoint = serde_json::to_value(&wallet).unwrap_or_default();
+        self.add_service("AgentWallet", endpoint)
+    }
+
+    /// 添加链接域名服务
+    pub fn add_linked_domains(&mut self, domains: LinkedDomains) -> &mut Self {
+        let endpoint = serde_json::to_value(&domains).unwrap_or_default();
+        self.add_service("LinkedDomains", endpoint)
+    }
+
+    /// 添加简单的头像 URL（快捷方式）
+    pub fn with_avatar(&mut self, avatar_url: impl Into<String>) -> &mut Self {
+        let profile = AgentProfile::new().with_avatar(avatar_url);
+        self.add_agent_profile(profile)
+    }
+
+    /// 添加简单的 Ethereum 钱包地址（快捷方式）
+    pub fn with_ethereum_wallet(&mut self, address: impl Into<String>, label: Option<String>) -> &mut Self {
+        let wallets = CryptoWallets::new().with_ethereum(address, label);
+        self.add_crypto_wallets(wallets)
+    }
+
 
     /// 添加PubSub服务端点
     pub fn add_pubsub_service(
@@ -774,3 +1108,4 @@ mod tests {
         println!("  DID: {}", did_doc.id);
     }
 }
+

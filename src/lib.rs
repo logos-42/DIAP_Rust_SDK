@@ -86,6 +86,16 @@ pub use agent_verification::{
 pub use did_builder::{VerificationMethod, Service};
 pub use did_cache::CacheStats;
 
+// 导出新增的 DID 服务类型
+pub use did_builder::{
+    AgentProfile,
+    CryptoWallets,
+    CryptoWallet,
+    AgentWallet,
+    LinkedDomains,
+};
+pub use did_builder::DIDBuilder;
+
 /// SDK 版本
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
