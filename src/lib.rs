@@ -72,6 +72,9 @@ pub mod ipfs_bidirectional_verification;
 // IPFS 节点管理器
 pub mod ipfs_node_manager;
 
+// 实名认证模块
+pub mod real_name_auth;
+
 // 重新导出主要类型
 pub use key_manager::{KeyPair, KeyManager};
 pub use identity_manager::{IdentityManager, AgentInfo};
@@ -85,6 +88,13 @@ pub use agent_verification::{
 };
 pub use did_builder::{VerificationMethod, Service};
 pub use did_cache::CacheStats;
+
+// 导出实名认证类型
+pub use real_name_auth::{
+    RealNameCredential, AuthLevel, UserIdentity, UserType,
+    AgentAuthorization, AgentAuthLevel, RealNameAuthManager,
+    AgentSignature, AgentMetadata, AuthorizationChain,
+};
 
 // 导出新增的 DID 服务类型
 pub use did_builder::{

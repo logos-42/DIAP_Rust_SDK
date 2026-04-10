@@ -24,14 +24,11 @@
 - ✅ 仅使用 HTTP API 连接到远程 IPFS 节点
 - ✅ 适合边缘服务器、IoT 设备
 
-## 📢 最新版本：0.2.15
+## 📢 最新版本：0.2.17
 
 **重要更新**：
-- 🆕 独立的 `IpnsManager` 模块，集中管理 IPNS 功能
-- 🚀 并行发布到多个节点，加速 DHT 传播（3 倍速度提升）
-- 📡 DHT 广播和预传播功能
-- 🔧 修复依赖问题（bincode 3.0 恶作剧版本）
-- 📝 改进的序列化处理
+- 🆕 **实名认证模块** - 支持身份证绑定、用户 DID 身份锚定、智能体签名授权
+- 🛡️ **AgentAuthorization** - 用户 DID 对智能体的签名授权机制
 
 ## 快速开始
 
@@ -39,7 +36,7 @@
 
 ```toml
 [dependencies]
-diap-rs-sdk = "0.2.15"
+diap-rs-sdk = "0.2.17"
 tokio = { version = "1.0", features = ["full"] }
 env_logger = "0.11"
 anyhow = "1.0"
@@ -292,6 +289,72 @@ async fn main() -> Result<()> {
 - ✅ **高性能**: 预编译电路，毫秒级响应
 - ✅ **IPNS 管理**: 独立的 IPNS 模块，支持并行发布和 DHT 广播
 - ✅ **自动 IPNS 发布**: DID 文档发布时自动发布到 IPNS
+- ✅ **实名认证**: 支持身份证绑定、用户 DID 身份锚定、智能体签名授权
+
+## 实名认证使用示例
+
+```rust
+use diap_rs_sdk::{
+    RealNameAuthManager, RealNameCredential, AuthLevel,
+    AgentAuthorization, AgentAuthLevel, AgentSignature, AgentMetadata,
+};
+use anyhow::Result;
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    let auth_manager = RealNameAuthManager::new();
+    
+    // 1. 生成用户密钥对并创建用户 DID
+    let user_keypair = diap_rs_sdk::KeyPair::generate()?;
+    let user_did = auth_manager.create_user_did(&user_keypair);
+    println!("用户 DID: {}", user_did);
+    
+    // 2. 创建实名认证凭证（身份证绑定）
+    let credential = auth_manager.create_credential(
+        &user_keypair,
+        "110101199001011234", // 身份证号
+        "张三",                // 姓名
+        AuthLevel::Medium,     // 中级认证
+    )?;
+    println!("实名凭证 ID: {}", credential.credential_id);
+    
+    // 3. 对智能体进行签名授权
+    let agent_did = "did:key:zabc123";
+    let authorization = auth_manager.authorize_agent(
+        &user_keypair,
+        agent_did,
+        AgentAuthLevel::FullControl,  // 完全控制权限
+        None,                         // 无范围限制
+        None,                         // 无过期时间
+    )?;
+    println!("授权 ID: {}", authorization.authorization_id);
+    
+    // 4. 验证授权签名
+    let is_valid = auth_manager.verify_agent_authorization(
+        &authorization,
+        &user_keypair.public_key,
+    )?;
+    println!("授权验证: {}", if is_valid { "通过" } else { "失败" });
+    
+    // 5. 智能体创建时获取用户签名盖章
+    let agent_metadata = AgentMetadata {
+        agent_did: agent_did.to_string(),
+        name: "MyAgent".to_string(),
+        agent_type: "assistant".to_string(),
+        created_at: chrono::Utc::now().to_rfc3339(),
+        public_key: base64::engine::general_purpose::STANDARD.encode(&user_keypair.public_key),
+        extra: None,
+    };
+    
+    let agent_signature = auth_manager.sign_agent_creation(
+        &user_keypair,
+        &agent_metadata,
+    )?;
+    println!("智能体签名: {}", agent_signature.signature);
+    
+    Ok(())
+}
+```
 
 ## 技术栈
 
@@ -303,16 +366,16 @@ async fn main() -> Result<()> {
 
 ## 更新记录
 
-### 0.2.15 (最新)
-- 🆕 **独立 IPNS 管理模块** - 将 IPNS 功能从 `IpfsClient` 拆分到 `IpnsManager`
-- 🚀 **并行发布** - `publish_to_multiple_nodes()` 同时发布到多个节点，速度提升 3 倍
-- 📡 **DHT 广播** - `broadcast_to_dht()` 主动触发 DHT 传播
-- 📌 **发布 + Pin** - `publish_and_pin()` 确保内容可用性
-- ⚡ **预传播** - `prepropagate_cid()` 提前缓存内容，减少首次访问延迟
-- 🔧 **依赖修复** - bincode 3.0 是恶作剧版本，降级到 2.0
-- 📝 **序列化改进** - 使用 serde_json 替代 bincode
+### 0.2.17 (最新)
+- 🆕 **实名认证模块** - 支持身份证绑定、用户 DID 身份锚定、智能体签名授权
+  - `RealNameAuthManager`: 实名认证管理器
+  - `RealNameCredential`: 实名认证凭证（加密存储身份证、姓名）
+  - `AuthLevel`: 认证级别（Basic/Medium/High）
+  - `AgentAuthorization`: 用户 DID 对智能体的签名授权
+  - `AgentAuthLevel`: 智能体授权级别（ReadOnly/ReadWrite/Admin/FullControl）
+  - `AgentSignature`: 智能体创建签名（用户 DID 盖章）
 
-### 0.2.16 (开发中)
+### 0.2.16
 - 🆕 **DID 文档扩展支持** - 添加智能体档案、加密货币钱包、智能体钱包服务类型
   - `AgentProfile`: 支持头像 URL、名称、描述等智能体档案信息
   - `CryptoWallets`: 支持多链钱包地址（Ethereum、Bitcoin、Solana 等）
@@ -320,10 +383,14 @@ async fn main() -> Result<()> {
   - `LinkedDomains`: 支持链接域名服务
 - 🛠️ **DIDBuilder 便捷方法** - 添加 `add_agent_profile()`, `add_crypto_wallets()`, `add_agent_wallet()`, `with_avatar()` 等快捷 API
 
-### 0.2.14
-- 🚀 快速 IPNS 传播方法
-- 📡 DHT 广播辅助功能
-- 📢 CID 预传播功能
+### 0.2.15
+- 🆕 **独立 IPNS 管理模块** - 将 IPNS 功能从 `IpfsClient` 拆分到 `IpnsManager`
+- 🚀 **并行发布** - `publish_to_multiple_nodes()` 同时发布到多个节点，速度提升 3 倍
+- 📡 **DHT 广播** - `broadcast_to_dht()` 主动触发 DHT 传播
+- 📌 **发布 + Pin** - `publish_and_pin()` 确保内容可用性
+- ⚡ **预传播** - `prepropagate_cid()` 提前缓存内容，减少首次访问延迟
+- 🔧 **依赖修复** - bincode 3.0 是恶作剧版本，降级到 2.0
+- 📝 **序列化改进** - 使用 serde_json 替代 bincode
 
 ### 0.2.13
 - 🔄 更新 iroh 依赖到 0.96.1
