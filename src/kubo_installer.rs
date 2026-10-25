@@ -3,8 +3,8 @@
 
 use anyhow::{Context, Result};
 use flate2::read::GzDecoder;
-use std::fs::{self, File, Permissions};
-use std::io::{BufReader, Write};
+use std::fs::{self, File};
+use std::io::BufReader;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use tar::Archive;

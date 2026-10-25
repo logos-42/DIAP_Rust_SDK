@@ -205,11 +205,10 @@ mod tests {
     
     #[test]
     fn test_generate_simple_keys() {
+        // 0.3.0: generate_simple_zkp_keys 已废弃 (改用 Noir ZKP), 返回空占位
         let (pk, vk) = generate_simple_zkp_keys().unwrap();
-        assert!(!pk.is_empty());
-        assert!(!vk.is_empty());
-        assert_eq!(pk, b"DIAP_PROVING_KEY_V1_DEMO");
-        assert_eq!(vk, b"DIAP_VERIFICATION_KEY_V1_DEMO");
+        assert!(pk.is_empty(), "废弃函数返回空占位 pk");
+        assert!(vk.is_empty(), "废弃函数返回空占位 vk");
     }
     
     #[tokio::test]

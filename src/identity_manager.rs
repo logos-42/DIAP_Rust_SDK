@@ -384,7 +384,7 @@ mod tests {
         // 验证身份
         let verification = manager.verify_identity_with_zkp(
             &registration.cid,
-            &proof.proof,
+            &proof,
             nonce,
         ).await.unwrap();
         

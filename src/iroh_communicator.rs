@@ -10,8 +10,8 @@ use std::collections::HashMap;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::sync::mpsc;
 
-// Iroh核心组件 - 基于真实API
-use iroh::{Endpoint, NodeAddr};
+// Iroh核心组件 - 基于真实API (iroh 1.4)
+use iroh::{Endpoint, EndpointAddr, endpoint::presets};
 
 /// Iroh通信器配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -104,14 +104,14 @@ pub struct IrohCommunicator {
     endpoint: Endpoint,
     /// 配置
     _config: IrohConfig,
-    /// 活跃连接（使用NodeAddr作为键）
-    connections: HashMap<String, (IrohConnection, NodeAddr)>,
+    /// 活跃连接（使用EndpointId字符串作为键）
+    connections: HashMap<String, (IrohConnection, EndpointAddr)>,
     /// 消息接收通道
     message_receiver: mpsc::UnboundedReceiver<IrohMessage>,
     /// 消息发送通道
     message_sender: mpsc::UnboundedSender<IrohMessage>,
-    /// 节点地址
-    node_addr: NodeAddr,
+    /// 本机端点地址
+    node_addr: EndpointAddr,
 }
 
 // ALPN是Iroh约定的应用协议
@@ -122,20 +122,21 @@ impl IrohCommunicator {
     pub async fn new(config: IrohConfig) -> Result<Self> {
         log::info!("🚀 创建Iroh通信器");
 
-        // 构建节点端点，配置ALPN支持
-        let endpoint = Endpoint::builder()
+        // 构建节点端点，配置ALPN支持（iroh 1.4: builder 需 preset）
+        let endpoint = Endpoint::builder(presets::N0)
             .alpns(vec![ALPN.to_vec()])
             .bind()
             .await
-            .map_err(|e| anyhow!("Failed to bind endpoint: {}", e))?;
+            .map_err(|e| anyhow!("Failed to bind endpoint: {e}"))?;
 
-        // 获取本地节点地址
-        let node_addr = endpoint.node_addr();
+        // 获取本机端点地址（iroh 1.4: addr()/id()）
+        let node_id = endpoint.id();
+        let node_addr = endpoint.addr();
 
         // 创建消息通道
         let (message_sender, message_receiver) = mpsc::unbounded_channel();
 
-        log::info!("✅ Iroh通信器创建成功，节点ID: {}", node_addr.node_id);
+        log::info!("✅ Iroh通信器创建成功，节点ID: {}", node_id);
 
         Ok(Self {
             endpoint,
@@ -149,21 +150,21 @@ impl IrohCommunicator {
 
     /// 获取节点地址
     pub fn get_node_addr(&self) -> Result<String> {
-        // NodeAddr没有实现Display trait，我们返回节点ID的字符串表示
-        Ok(format!("NodeID: {:?}", self.node_addr.node_id))
+        // EndpointAddr/PublicKey 实现 Display，返回节点 ID 的字符串表示
+        Ok(self.node_addr.id.to_string())
     }
 
-    /// 连接到远程节点（使用NodeAddr对象）
-    pub async fn connect_to_node_with_addr(&mut self, remote_addr: NodeAddr) -> Result<String> {
-        let remote_node_id = remote_addr.node_id.to_string();
-        let node_addr_str = format!("{:?}", remote_addr.node_id);
-        
+    /// 连接到远程节点（使用 EndpointAddr 对象, iroh 1.4 API）
+    pub async fn connect_to_node_with_addr(&mut self, remote_addr: EndpointAddr) -> Result<String> {
+        let remote_node_id = remote_addr.id.to_string();
+        let node_addr_str = remote_node_id.clone();
+
         log::info!("🔗 连接到节点: {}", node_addr_str);
 
-        // 连接到目标节点
+        // 连接到目标节点（iroh 1.4: connect(endpoint_addr, alpn)）
         let _conn = self.endpoint.connect(remote_addr.clone(), ALPN).await
             .map_err(|e| anyhow!("Failed to connect to node: {}", e))?;
-        
+
         // 记录连接
         let connection_info = IrohConnection {
             remote_node_id: remote_node_id.clone(),
@@ -174,19 +175,19 @@ impl IrohCommunicator {
             data_hash: None,
         };
 
-        // 存储连接信息和NodeAddr
+        // 存储连接信息和 EndpointAddr
         self.connections.insert(remote_node_id.clone(), (connection_info, remote_addr));
 
         log::info!("✅ 已连接到节点: {} ({})", remote_node_id, node_addr_str);
         Ok(remote_node_id)
     }
 
-    /// 连接到远程节点（简化版本，需要预存的NodeAddr）
+    /// 连接到远程节点（简化版本，需要预存的 EndpointAddr）
     pub async fn connect_to_node(&mut self, node_id: &str) -> Result<String> {
         log::info!("🔗 连接到节点: {}", node_id);
 
-        // 这里简化处理，实际应用中需要从discovery服务或缓存中获取NodeAddr
-        return Err(anyhow!("Please use connect_to_node_with_addr() with a proper NodeAddr object. NodeAddr cannot be parsed from string."));
+        // 这里简化处理，实际应用中需要从discovery服务或缓存中获取 EndpointAddr
+        return Err(anyhow!("Please use connect_to_node_with_addr() with a proper EndpointAddr object. EndpointAddr cannot be parsed from string."));
     }
 
     /// 断开连接
@@ -207,8 +208,8 @@ impl IrohCommunicator {
         }
     }
 
-    /// 使用NodeAddr对象发送消息到指定节点
-    pub async fn send_message_with_addr(&self, remote_addr: NodeAddr, message: IrohMessage) -> Result<()> {
+    /// 使用 EndpointAddr 对象发送消息到指定节点
+    pub async fn send_message_with_addr(&self, remote_addr: EndpointAddr, message: IrohMessage) -> Result<()> {
         // 序列化消息
         let message_data = serde_json::to_vec(&message)?;
 
@@ -356,21 +357,21 @@ impl IrohCommunicator {
         while let Some(conn_future) = self.endpoint.accept().await {
             let conn_future = conn_future.await
                 .map_err(|e| anyhow!("Failed to accept connection: {}", e))?;
-            
-            let remote_node_id = conn_future.remote_node_id();
-            log::info!("📨 新连接建立，节点ID: {:?}", remote_node_id);
-            
+
+            let remote_node_id = conn_future.remote_id();
+            log::info!("📨 新连接建立，节点ID: {}", remote_node_id);
+
             // 处理传入的双向流
             if let Ok((mut send_stream, mut recv_stream)) = conn_future.accept_bi().await {
                 log::info!("📡 接受双向流");
-                
+
                 // 读取消息数据
                 if let Ok(data) = recv_stream.read_to_end(1024).await {
                     log::info!("📥 收到消息: {} 字节", data.len());
-                    
+
                     // 反序列化消息
                     if let Ok(message) = serde_json::from_slice::<IrohMessage>(&data) {
-                        log::info!("📨 收到消息: {} 来自节点: {:?}", 
+                        log::info!("📨 收到消息: {} 来自节点: {}", 
                                   message.message_id, remote_node_id);
                         
                         // 通过内部通道发送消息
@@ -409,7 +410,7 @@ impl IrohCommunicator {
     }
 
     /// 获取节点地址对象
-    pub fn get_node_addr_object(&self) -> NodeAddr {
+    pub fn get_node_addr_object(&self) -> EndpointAddr {
         self.node_addr.clone()
     }
 

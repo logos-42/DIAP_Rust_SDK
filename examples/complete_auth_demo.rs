@@ -19,19 +19,7 @@ async fn main() -> Result<()> {
     
     println!("✅ 认证管理器初始化成功");
     println!("   初始化时间: {:?}", init_time);
-    println!("   节点状态: {:?}", auth_manager.get_node_status().await);
-    
-    // 获取节点信息
-    match auth_manager.get_node_info().await {
-        Ok(info) => {
-            println!("   节点ID: {}", info.id);
-            println!("   版本: {}", info.agent_version);
-        }
-        Err(e) => {
-            println!("   ⚠️  节点信息获取失败: {}", e);
-        }
-    }
-    
+    println!("   节点状态: 内置本地节点 (API 简化后无独立 get_node_status)");
     println!("\n🤖 创建智能体A (Alice)");
     println!("==========================");
     
@@ -157,20 +145,14 @@ async fn main() -> Result<()> {
     
     println!("\n🔧 系统状态");
     println!("============");
-    println!("   节点状态: {:?}", auth_manager.get_node_status().await);
     println!("   认证管理器: 运行中");
     println!("   缓存系统: 激活");
-    
+
     println!("\n💡 下一步可以：");
     println!("   1. 实现智能体间消息传递");
     println!("   2. 添加更多智能体到网络");
     println!("   3. 实现分布式共识机制");
     println!("   4. 添加监控和日志系统");
-    
-    // 清理资源
-    println!("\n🧹 清理资源...");
-    auth_manager.stop().await?;
-    println!("✅ 资源清理完成");
     
     println!("\n🎊 完整认证闭环演示完成！");
     println!("==========================================");

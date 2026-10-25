@@ -6,7 +6,7 @@
 use diap_rs_sdk::{
     IrohCommConfig,
 };
-use iroh::Endpoint;
+use iroh::{Endpoint, endpoint::presets};
 use anyhow::Result;
 use tokio::time::{sleep, Duration};
 use std::sync::Arc;
@@ -21,23 +21,23 @@ async fn main() -> Result<()> {
     // 1. 创建两个端点用于真实的P2P通信
     println!("\n📡 创建Iroh端点...");
     
-    let ep1 = Endpoint::builder()
+    let ep1 = Endpoint::builder(presets::N0)
         .alpns(vec![b"diap-closed-loop".to_vec()])
         .bind()
         .await?;
-    
-    let ep2 = Endpoint::builder()
+
+    let ep2 = Endpoint::builder(presets::N0)
         .alpns(vec![b"diap-closed-loop".to_vec()])
         .bind()
         .await?;
-    
-    // 2. 获取节点地址
-    let node_addr1 = ep1.node_addr();
-    let node_addr2 = ep2.node_addr();
-    
+
+    // 2. 获取节点地址（iroh 1.4: addr() 返回 EndpointAddr, id 为 EndpointId）
+    let node_addr1 = ep1.addr();
+    let node_addr2 = ep2.addr();
+
     println!("✅ 端点创建成功!");
-    println!("   端点1 - 节点ID: {:?}", node_addr1.node_id);
-    println!("   端点2 - 节点ID: {:?}", node_addr2.node_id);
+    println!("   端点1 - 节点ID: {}", node_addr1.id);
+    println!("   端点2 - 节点ID: {}", node_addr2.id);
     
     // 3. 创建通信器配置
     let _config = IrohCommConfig {
@@ -59,8 +59,8 @@ async fn main() -> Result<()> {
         if let Some(conn_future) = ep1_clone.accept().await {
             match conn_future.await {
                 Ok(connection) => {
-                    let remote_node_id = connection.remote_node_id();
-                    println!("   ✅ 节点1接受了来自 {:?} 的连接", remote_node_id);
+                    let remote_node_id = connection.remote_id();
+                    println!("   ✅ 节点1接受了来自 {} 的连接", remote_node_id);
                     
                     // 处理双向流
                     if let Ok((mut send_stream, mut recv_stream)) = connection.accept_bi().await {
@@ -85,7 +85,7 @@ async fn main() -> Result<()> {
                                     let response = serde_json::json!({
                                         "message_type": "response",
                                         "message_id": uuid::Uuid::new_v4().to_string(),
-                                        "from_node": format!("{:?}", node_addr1.node_id),
+                                        "from_node": node_addr1.id.to_string(),
                                         "to_node": format!("{:?}", remote_node_id),
                                         "original_message_id": diap_message.get("message_id"),
                                         "content": "Message received and processed successfully!",
@@ -141,12 +141,12 @@ async fn main() -> Result<()> {
                     "message_id": uuid::Uuid::new_v4().to_string(),
                     "from_did": "did:example:alice",
                     "to_did": "did:example:bob",
-                    "from_node": format!("{:?}", node_addr2.node_id),
+                    "from_node": node_addr2.id.to_string(),
                     "content": "Hello from Node 2! This is a complete closed-loop P2P communication test.",
                     "timestamp": chrono::Utc::now().to_rfc3339(),
                     "metadata": {
                         "protocol_version": "diap/1.0",
-                        "node_id": format!("{:?}", node_addr2.node_id),
+                        "node_id": node_addr2.id.to_string(),
                         "capabilities": ["zkp_verification", "pubsub", "p2p_communication"],
                         "challenge": "closed_loop_test_123",
                         "sequence": 1,

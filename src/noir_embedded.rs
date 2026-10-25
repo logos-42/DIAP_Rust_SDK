@@ -343,8 +343,10 @@ mod tests {
     async fn test_embedded_circuit_basic() {
         let mut manager = EmbeddedNoirZKPManager::new().unwrap();
         
+        // 输入必须自洽: expected_did_hash = compute_hash(pk, nonce) 才能满足电路约束
+        let expected = manager.compute_hash("pk_hash", "nonce_hash");
         let inputs = NoirProverInputs {
-            expected_did_hash: "test_hash".to_string(),
+            expected_did_hash: expected,
             public_key_hash: "pk_hash".to_string(),
             nonce_hash: "nonce_hash".to_string(),
             expected_output: "expected_output".to_string(),

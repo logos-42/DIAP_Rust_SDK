@@ -1,24 +1,25 @@
 [package]
 name = "diap-rs-sdk"
-version = "0.2.7"
-edition = "2021"
+version = "0.3.0"
+edition = "2024"
+rust-version = "1.99"
 authors = ["liuyuanjie <2844169590@qq.com>"]
 description = "DIAP Rust SDK - 基于零知识证明的去中心化智能体身份协议，使用ZKP验证DID-CID绑定，无需IPNS"
 license = "MIT"
-   repository = "https://github.com/logos-42/DIAP_Rust_SDK"
+repository = "https://github.com/logos-42/DIAP_Rust_SDK"
 homepage = "https://alou.fun"
 documentation = "https://alou.fun"
 readme = "README.md"
 keywords = ["diap", "agent", "decentralized", "p2p", "ipfs"]
 categories = ["network-programming", "web-programming", "authentication", "cryptography", "asynchronous"]
 exclude = [
-    
-      "target/",
+    "target/",
     ".git/",
     "*.log",
     ".vscode/",
     ".idea/",
 ]
+
 [dependencies]
 # 核心运行时
 tokio = { version = "1.0", features = ["full"] }
@@ -26,20 +27,20 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 
 # 加密和密钥生成
-ed25519-dalek = "2.0"
+ed25519-dalek = "3.0"
 rand = "0.8"
 bs58 = "0.5"
-base64 = "0.21"
+base64 = "0.23"
 sha2 = "0.10"
 hex = "0.4"
 aes-gcm = "0.10"  # 私钥加密
 
 # IPFS/IPNS（保留核心功能）
-cid = "0.10"
-multihash = "0.18"
+cid = "0.11"
+multihash = "0.19"
 
 # libp2p核心（完整版）
-libp2p = { version = "0.53", features = [
+libp2p = { version = "0.57", features = [
     "tcp",                # TCP传输
     "noise",              # Noise协议加密
     "yamux",              # Yamux多路复用
@@ -52,19 +53,19 @@ libp2p = { version = "0.53", features = [
     "tokio",              # Tokio运行时
     "macros",             # NetworkBehaviour派生宏
 ] }
-libp2p-identity = { version = "0.2", features = ["ed25519"] }
+libp2p-identity = { version = "0.3", features = ["ed25519"] }
 
 # Iroh P2P通信（真实实现）
-iroh = { version = "0.93.2", features = ["default", "metrics"] }
+iroh = { version = "1.4", features = ["default"] }
 iroh-bytes = "0.15.0"
 
 # 网络和系统（简化）
 chrono = { version = "0.4", features = ["serde"] }
 
 # 配置和存储（简化）
-toml = "0.8"
-directories = "5.0"  # 跨平台目录
-dirs = "5.0"  # 用户目录
+toml = "1.1"
+directories = "6.0"  # 跨平台目录
+dirs = "6.0"  # 用户目录
 
 # Kubo自动安装依赖
 portpicker = "0.1"  # 自动分配可用端口
@@ -73,35 +74,36 @@ tar = "0.4"         # 处理tar归档
 
 # 日志
 log = "0.4"
-env_logger = "0.10"
+env_logger = "0.11"
 
 # 错误处理
 anyhow = "1.0"
-thiserror = "1.0"
+thiserror = "2.0"
 
 # 异步运行时
 futures = "0.3"
 
 # 网络和系统（必要依赖）
-reqwest = { version = "0.11", features = ["json", "multipart", "stream"] }
+reqwest = { version = "0.13", default-features = false, features = ["json", "multipart", "stream", "rustls"] }
 uuid = { version = "1.0", features = ["v4", "serde"] }
 
 # 缓存和存储
-dashmap = "5.5"
-bincode = "1.3"
-argon2 = "0.5"
+dashmap = "6.0"
+# bincode 3.0.0 是 crates.io 坏版本 (lib.rs 只有 compile_error! xkcd 2347) → 用 2.x + serde feature
+bincode = { version = "2.0", features = ["serde"] }
+argon2 = { version = "0.6", features = ["rand_core"] }  # rand_core 供 SaltString::generate 用
 
 # ZKP - arkworks生态系统（保留用于向后兼容）
-ark-std = "0.4"
-ark-ff = "0.4"
-ark-ec = "0.4"
-ark-serialize = "0.4"
-ark-bn254 = "0.4"
-ark-groth16 = "0.4"
-ark-snark = "0.4"
-ark-r1cs-std = "0.4"
-ark-relations = "0.4"
-ark-crypto-primitives = "0.4"
+ark-std = "0.5"
+ark-ff = "0.5"
+ark-ec = "0.5"
+ark-serialize = "0.5"
+ark-bn254 = "0.5"
+ark-groth16 = "0.5"
+ark-snark = "0.5"
+ark-r1cs-std = "0.5"
+ark-relations = "0.5"
+ark-crypto-primitives = "0.5"
 
 # Blake2哈希（用于ZKP电路）
 blake2 = "0.10"
@@ -123,4 +125,3 @@ tokio-test = "0.4"
 tempfile = "3.8"
 
 # 示例程序会自动从 examples/ 目录发现，无需显式配置
-

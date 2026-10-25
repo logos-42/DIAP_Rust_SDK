@@ -2,7 +2,7 @@
 // 展示新的零依赖部署功能
 
 use diap_rs_sdk::{
-    UniversalNoirManager, NoirBackend, BackendInfo,
+    UniversalNoirManager, NoirBackend,
     AgentAuthManager,
 };
 use anyhow::Result;

@@ -10,7 +10,6 @@ use diap_rs_sdk::{
     IrohMessageType,
 };
 use anyhow::Result;
-use tokio::time::{sleep, Duration};
 use std::time::SystemTime;
 
 #[tokio::main]
@@ -39,8 +38,8 @@ async fn main() -> Result<()> {
     let node_addr2 = communicator2.get_node_addr_object();
     
     println!("✅ 通信器创建成功!");
-    println!("   通信器1 - 节点ID: {:?}", node_addr1.node_id);
-    println!("   通信器2 - 节点ID: {:?}", node_addr2.node_id);
+    println!("   通信器1 - 节点ID: {:?}", node_addr1.id);
+    println!("   通信器2 - 节点ID: {:?}", node_addr2.id);
     
     // 3. 演示消息创建功能
     println!("\n📝 演示消息创建功能...");
@@ -66,7 +65,7 @@ async fn main() -> Result<()> {
         content: "Hello from Node 2! This is a real working P2P communication!".to_string(),
         metadata: std::collections::HashMap::from([
             ("protocol".to_string(), "diap/1.0".to_string()),
-            ("node_id".to_string(), format!("{:?}", node_addr2.node_id)),
+            ("node_id".to_string(), format!("{:?}", node_addr2.id)),
             ("timestamp".to_string(), chrono::Utc::now().to_rfc3339()),
         ]),
         timestamp: SystemTime::now().duration_since(SystemTime::UNIX_EPOCH)?.as_secs(),

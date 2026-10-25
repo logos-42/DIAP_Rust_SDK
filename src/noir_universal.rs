@@ -16,7 +16,7 @@ use crate::noir_zkp::NoirZKPManager;
 use crate::key_generator::{generate_simple_zkp_keys, ensure_zkp_keys_exist};
 
 /// 通用Noir后端类型
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NoirBackend {
     /// 嵌入的预编译电路（零依赖）
     Embedded,
@@ -150,6 +150,12 @@ impl UniversalNoirManager {
     /// 初始化选定的后端
     async fn initialize_backend(&mut self) -> Result<()> {
         match self.backend {
+            #[cfg(not(feature = "embedded-noir"))]
+            NoirBackend::Embedded => {
+                log::warn!("⚠️  嵌入Noir后端未启用（缺 embedded-noir feature），降级为简化后端");
+                self.backend = NoirBackend::Simplified;
+            }
+
             #[cfg(feature = "embedded-noir")]
             NoirBackend::Embedded => {
                 log::info!("🔧 初始化嵌入Noir后端");
@@ -185,6 +191,11 @@ impl UniversalNoirManager {
     /// 生成证明
     pub async fn generate_proof(&mut self, inputs: &NoirProverInputs) -> Result<NoirProofResult> {
         match self.backend {
+            #[cfg(not(feature = "embedded-noir"))]
+            NoirBackend::Embedded => {
+                Err(anyhow::anyhow!("嵌入Noir后端未启用（需 feature: embedded-noir）"))
+            }
+
             #[cfg(feature = "embedded-noir")]
             NoirBackend::Embedded => {
                 if let Some(ref mut manager) = self.embedded_manager {
@@ -254,6 +265,11 @@ impl UniversalNoirManager {
     /// 验证证明
     pub async fn verify_proof(&self, proof: &[u8], public_inputs: &[u8]) -> Result<NoirVerificationResult> {
         match self.backend {
+            #[cfg(not(feature = "embedded-noir"))]
+            NoirBackend::Embedded => {
+                Err(anyhow::anyhow!("嵌入Noir后端未启用（需 feature: embedded-noir）"))
+            }
+
             #[cfg(feature = "embedded-noir")]
             NoirBackend::Embedded => {
                 if let Some(ref manager) = self.embedded_manager {
@@ -416,6 +432,11 @@ impl UniversalNoirManager {
     /// 获取性能统计
     pub fn get_performance_stats(&self) -> PerformanceStats {
         match self.backend {
+            #[cfg(not(feature = "embedded-noir"))]
+            NoirBackend::Embedded => {
+                PerformanceStats::default()
+            }
+
             #[cfg(feature = "embedded-noir")]
             NoirBackend::Embedded => {
                 if let Some(ref manager) = self.embedded_manager {

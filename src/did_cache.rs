@@ -271,8 +271,8 @@ mod tests {
         }
     }
     
-    #[test]
-    fn test_cache_put_and_get() {
+    #[tokio::test]
+    async fn test_cache_put_and_get() {
         let cache = DIDCache::new(Some(300), Some(100));
         let cid = "QmTest123";
         let doc = create_test_document("did:key:z6MkTest");
@@ -286,15 +286,15 @@ mod tests {
         assert_eq!(retrieved.unwrap().id, doc.id);
     }
     
-    #[test]
-    fn test_cache_miss() {
+    #[tokio::test]
+    async fn test_cache_miss() {
         let cache = DIDCache::new(Some(300), Some(100));
         let result = cache.get("QmNonExistent");
         assert!(result.is_none());
     }
     
-    #[test]
-    fn test_cache_remove() {
+    #[tokio::test]
+    async fn test_cache_remove() {
         let cache = DIDCache::new(Some(300), Some(100));
         let cid = "QmTest456";
         let doc = create_test_document("did:key:z6MkTest2");
@@ -306,8 +306,8 @@ mod tests {
         assert!(cache.get(cid).is_none());
     }
     
-    #[test]
-    fn test_cache_expiration() {
+    #[tokio::test]
+    async fn test_cache_expiration() {
         let cache = DIDCache::new(Some(1), Some(100));  // 1秒TTL
         let cid = "QmTest789";
         let doc = create_test_document("did:key:z6MkTest3");
@@ -321,8 +321,8 @@ mod tests {
         assert!(cache.get(cid).is_none());
     }
     
-    #[test]
-    fn test_cache_stats() {
+    #[tokio::test]
+    async fn test_cache_stats() {
         let cache = DIDCache::new(Some(300), Some(100));
         
         for i in 0..5 {
@@ -336,8 +336,8 @@ mod tests {
         assert_eq!(stats.max_entries, 100);
     }
     
-    #[test]
-    fn test_lru_eviction() {
+    #[tokio::test]
+    async fn test_lru_eviction() {
         let cache = DIDCache::new(Some(300), Some(3));  // 只能存3个
         
         // 添加3个文档

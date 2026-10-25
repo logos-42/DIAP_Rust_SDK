@@ -220,8 +220,8 @@ impl Default for NonceManager {
 mod tests {
     use super::*;
     
-    #[test]
-    fn test_generate_nonce() {
+    #[tokio::test]
+    async fn test_generate_nonce() {
         let nonce1 = NonceManager::generate_nonce();
         let nonce2 = NonceManager::generate_nonce();
         
@@ -231,8 +231,8 @@ mod tests {
         println!("生成的nonce: {}", nonce1);
     }
     
-    #[test]
-    fn test_verify_and_record() {
+    #[tokio::test]
+    async fn test_verify_and_record() {
         let manager = NonceManager::new(Some(300), Some(60));
         let nonce = NonceManager::generate_nonce();
         let did = "did:key:z6MkTest";
@@ -248,8 +248,8 @@ mod tests {
         assert!(!result.unwrap());
     }
     
-    #[test]
-    fn test_expired_nonce() {
+    #[tokio::test]
+    async fn test_expired_nonce() {
         let manager = NonceManager::new(Some(1), Some(60));  // 1秒有效期
         
         // 创建一个过去的nonce
@@ -265,8 +265,8 @@ mod tests {
         assert!(result.unwrap_err().to_string().contains("过期"));
     }
     
-    #[test]
-    fn test_cleanup() {
+    #[tokio::test]
+    async fn test_cleanup() {
         let manager = NonceManager::new(Some(1), Some(60));
         
         // 添加一些nonce
@@ -289,8 +289,8 @@ mod tests {
         assert_eq!(manager.count(), 0);
     }
     
-    #[test]
-    fn test_invalid_nonce_format() {
+    #[tokio::test]
+    async fn test_invalid_nonce_format() {
         let manager = NonceManager::new(Some(300), Some(60));
         
         let result = manager.verify_and_record("invalid", "did:key:test");

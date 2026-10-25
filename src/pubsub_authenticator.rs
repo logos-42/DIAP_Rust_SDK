@@ -432,16 +432,18 @@ impl PubsubAuthenticator {
         Ok(public_key)
     }
     
-    /// 序列化消息为字节
+    /// 序列化消息为字节（bincode 2.x + serde feature: bincode::serde:: 命名空间）
     pub fn serialize_message(message: &AuthenticatedMessage) -> Result<Vec<u8>> {
-        bincode::serialize(message)
-            .context("序列化消息失败")
+        bincode::serde::encode_to_vec(message, bincode::config::standard())
+            .map_err(|e| anyhow::anyhow!("序列化消息失败: {e}"))
     }
-    
-    /// 反序列化消息
+
+    /// 反序列化消息（bincode 2.x + serde feature）
     pub fn deserialize_message(data: &[u8]) -> Result<AuthenticatedMessage> {
-        bincode::deserialize(data)
-            .context("反序列化消息失败")
+        let (msg, _): (AuthenticatedMessage, usize) =
+            bincode::serde::decode_from_slice(data, bincode::config::standard())
+                .map_err(|e| anyhow::anyhow!("反序列化消息失败: {e}"))?;
+        Ok(msg)
     }
     
     /// 获取缓存统计

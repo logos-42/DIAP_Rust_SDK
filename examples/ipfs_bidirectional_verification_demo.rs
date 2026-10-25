@@ -25,8 +25,8 @@ async fn main() -> Result<()> {
     println!("✅ 双向验证管理器初始化成功");
     println!("   初始化时间: {:?}", init_time);
     
-    // 获取IPFS节点状态
-    match verification_manager.get_ipfs_node_status().await {
+    // 获取IPFS客户端状态（API 更名: get_ipfs_node_status → get_ipfs_client_status）
+    match verification_manager.get_ipfs_client_status().await {
         Ok(status) => println!("   IPFS节点状态: {}", status),
         Err(e) => println!("   ⚠️  IPFS节点状态获取失败: {}", e),
     }
