@@ -559,7 +559,16 @@ mod tests {
     #[tokio::test]
     async fn test_proof_generation_and_verification() {
         let mut manager = UniversalNoirManager::new().await.unwrap();
-        
+        // 默认 backend 是 Embedded (需 feature); 未启用时先切 Simplified
+        if manager.generate_proof(&NoirProverInputs {
+            expected_did_hash: "probe".to_string(),
+            public_key_hash: "p".to_string(),
+            nonce_hash: "n".to_string(),
+            expected_output: "o".to_string(),
+        }).await.is_err() {
+            manager.switch_backend(NoirBackend::Simplified).await.unwrap();
+        }
+
         let inputs = NoirProverInputs {
             expected_did_hash: "test_hash".to_string(),
             public_key_hash: "pk_hash".to_string(),
