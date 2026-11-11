@@ -275,16 +275,29 @@ impl IrohCommunicator {
         // 连接到目标节点并建立QUIC双向流
         let conn = self.endpoint.connect(remote_addr, ALPN).await
             .map_err(|e| anyhow!("Failed to connect for message sending: {}", e))?;
-        let (mut send_stream, _recv_stream) = conn.open_bi().await
+        let (mut send_stream, mut recv_stream) = conn.open_bi().await
             .map_err(|e| anyhow!("Failed to open bidirectional stream: {}", e))?;
         
-        // 发送数据
-        send_stream.write_all(&message_data).await
+        // 2026-11-11: 4 字节大端长度前缀 + body。以前只 write + finish，
+        // 对端 read_to_end 依赖 EOF 通知，实测会一直挂起；长度帧让接收端按长度读。
+        let mut framed = Vec::with_capacity(4 + message_data.len());
+        framed.extend_from_slice(&(message_data.len() as u32).to_be_bytes());
+        framed.extend_from_slice(&message_data);
+        send_stream.write_all(&framed).await
             .map_err(|e| anyhow!("Failed to write message data: {}", e))?;
         send_stream.finish()
             .map_err(|e| anyhow!("Failed to finish stream: {}", e))?;
 
-        log::debug!("📤 消息已发送 (消息ID: {}, 哈希: {})", 
+        // 2026-11-11: 等对端 ack 再 drop 连接。以前写完立刻返回, 连接被关,
+        // 接收侧 accept_bi() 拿不到这条流 (不报错也不投递)。
+        let mut ack = [0u8; 1];
+        let _ = tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            recv_stream.read_exact(&mut ack),
+        )
+        .await;
+
+        log::debug!("📤 消息已发送 (消息ID: {}, 哈希: {})",
                    message.message_id, data_hash);
         Ok(())
     }
@@ -413,11 +426,27 @@ impl IrohCommunicator {
     /// 启动消息监听器
     pub async fn start_message_listener(&self) -> Result<()> {
         log::info!("🎧 启动Iroh消息监听器");
+        log::debug!("[diap] listener started");
         
         // 监听传入的连接
-        while let Some(conn_future) = self.endpoint.accept().await {
-            let conn_future = conn_future.await
-                .map_err(|e| anyhow!("Failed to accept connection: {}", e))?;
+        while let Some(incoming) = self.endpoint.accept().await {
+            log::debug!("[diap] incoming accepted");
+            // iroh 1.4: Incoming 必须显式 accept() 才完成握手; 直接 .await 会一直挂起。
+            let accepting = match incoming.accept() {
+                Ok(a) => a,
+                Err(e) => {
+                    log::debug!("[diap] accept() err: {e}");
+                    continue;
+                }
+            };
+            let conn_future = match accepting.await {
+                Ok(c) => c,
+                Err(e) => {
+                    log::debug!("[diap] handshake err: {e}");
+                    continue;
+                }
+            };
+            log::debug!("[diap] handshake ok");
 
             let remote_node_id = conn_future.remote_id();
             log::info!("📨 新连接建立，节点ID: {}", remote_node_id);
@@ -426,9 +455,21 @@ impl IrohCommunicator {
             if let Ok((mut send_stream, mut recv_stream)) = conn_future.accept_bi().await {
                 log::info!("📡 接受双向流");
 
-                // 读取消息数据
-                if let Ok(data) = recv_stream.read_to_end(MAX_MESSAGE_BYTES).await {
+                // 按长度帧读（4 字节大端 + body），不依赖对端 EOF
+                let mut len_buf = [0u8; 4];
+                let mut body: Option<Vec<u8>> = None;
+                if recv_stream.read_exact(&mut len_buf).await.is_ok() {
+                    let len = u32::from_be_bytes(len_buf) as usize;
+                    if len > 0 && len <= MAX_MESSAGE_BYTES {
+                        let mut buf = vec![0u8; len];
+                        if recv_stream.read_exact(&mut buf).await.is_ok() {
+                            body = Some(buf);
+                        }
+                    }
+                }
+                if let Some(data) = body {
                     log::info!("📥 收到消息: {} 字节", data.len());
+                    log::debug!("[diap] read {} bytes", data.len());
 
                     // 反序列化消息
                     if let Ok(message) = serde_json::from_slice::<IrohMessage>(&data) {
