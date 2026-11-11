@@ -134,6 +134,18 @@ impl IrohCommunicator {
             .await
             .map_err(|e| anyhow!("Failed to bind endpoint: {e}"))?;
 
+        // 2026-11-11: 必须等 relay/discovery 就绪再返回。否则调用方拿到 NodeId 立刻 send
+        // 会报 "No addressing information available"(地址还没发布)。最多等 10s;
+        // 超时也放行(LAN/直连仍可能可用), 但如实告警, 不假装在线。
+        if tokio::time::timeout(std::time::Duration::from_secs(10), endpoint.online())
+            .await
+            .is_err()
+        {
+            log::warn!(
+                "iroh relay/discovery 10s 内未就绪: 只能靠已知直连地址, NodeId 发现可能失败"
+            );
+        }
+
         // 获取本机端点地址（iroh 1.4: addr()/id()）
         let node_id = endpoint.id();
         let node_addr = endpoint.addr();

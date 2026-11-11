@@ -1,6 +1,6 @@
 [package]
 name = "diap-rs-sdk"
-version = "0.3.2"
+version = "0.3.3"
 edition = "2024"
 rust-version = "1.99"
 authors = ["liuyuanjie <2844169590@qq.com>"]
