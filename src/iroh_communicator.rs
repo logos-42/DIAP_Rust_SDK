@@ -11,7 +11,10 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::sync::mpsc;
 
 // Iroh核心组件 - 基于真实API (iroh 1.4)
-use iroh::{Endpoint, EndpointAddr, endpoint::presets};
+use iroh::{Endpoint, EndpointAddr, PublicKey, endpoint::presets};
+
+/// 单条消息上限。以前 listener 只读 1024 字节 —— HTTP 信封/卡片一超就截断。
+const MAX_MESSAGE_BYTES: usize = 8 * 1024 * 1024;
 
 /// Iroh通信器配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -154,6 +157,11 @@ impl IrohCommunicator {
         Ok(self.node_addr.id.to_string())
     }
 
+    /// 本机 iroh 节点 ID（直接给对方用，不必再解析 display 字符串）
+    pub fn node_id(&self) -> String {
+        self.node_addr.id.to_string()
+    }
+
     /// 连接到远程节点（使用 EndpointAddr 对象, iroh 1.4 API）
     pub async fn connect_to_node_with_addr(&mut self, remote_addr: EndpointAddr) -> Result<String> {
         let remote_node_id = remote_addr.id.to_string();
@@ -182,12 +190,13 @@ impl IrohCommunicator {
         Ok(remote_node_id)
     }
 
-    /// 连接到远程节点（简化版本，需要预存的 EndpointAddr）
+    /// 连接到远程节点（只给 NodeId 即可；地址由 iroh 的 discovery/relay 解析）
     pub async fn connect_to_node(&mut self, node_id: &str) -> Result<String> {
-        log::info!("🔗 连接到节点: {}", node_id);
-
-        // 这里简化处理，实际应用中需要从discovery服务或缓存中获取 EndpointAddr
-        return Err(anyhow!("Please use connect_to_node_with_addr() with a proper EndpointAddr object. EndpointAddr cannot be parsed from string."));
+        let id: PublicKey = node_id
+            .trim()
+            .parse()
+            .map_err(|e| anyhow!("node_id 不是合法的 iroh 公钥: {e}"))?;
+        self.connect_to_node_with_addr(EndpointAddr::new(id)).await
     }
 
     /// 断开连接
@@ -200,12 +209,18 @@ impl IrohCommunicator {
     }
 
     /// 发送消息到指定节点
+    ///
+    /// 2026-11-11: 未显式连接时不再直接报「节点未连接」—— 用 NodeId 构造 EndpointAddr，
+    /// 交给 iroh 的 discovery/relay 打洞。这才是「给个 NodeId 就能发」的语义。
     pub async fn send_message(&self, node_id: &str, message: IrohMessage) -> Result<()> {
         if let Some((_connection, node_addr)) = self.connections.get(node_id) {
-            self.send_message_with_addr(node_addr.clone(), message).await
-        } else {
-            Err(anyhow!("节点未连接: {}", node_id))
+            return self.send_message_with_addr(node_addr.clone(), message).await;
         }
+        let id: PublicKey = node_id
+            .trim()
+            .parse()
+            .map_err(|e| anyhow!("node_id 不是合法的 iroh 公钥: {e}"))?;
+        self.send_message_with_addr(EndpointAddr::new(id), message).await
     }
 
     /// 使用 EndpointAddr 对象发送消息到指定节点
@@ -366,7 +381,7 @@ impl IrohCommunicator {
                 log::info!("📡 接受双向流");
 
                 // 读取消息数据
-                if let Ok(data) = recv_stream.read_to_end(1024).await {
+                if let Ok(data) = recv_stream.read_to_end(MAX_MESSAGE_BYTES).await {
                     log::info!("📥 收到消息: {} 字节", data.len());
 
                     // 反序列化消息
@@ -454,5 +469,30 @@ mod tests {
         let heartbeat = communicator.create_heartbeat("did:alice");
         assert_eq!(heartbeat.from_did, "did:alice");
         assert_eq!(heartbeat.to_did, None);
+    }
+}
+#[cfg(test)]
+mod upgrade_guards {
+    use super::*;
+
+    /// 0.3.1: 必须能直接拿到本机 NodeId，且与 get_node_addr 同源。
+    #[tokio::test]
+    async fn node_id_is_exposed_and_consistent() {
+        let c = IrohCommunicator::new(IrohConfig::default())
+            .await
+            .expect("iroh endpoint 应能 bind");
+        let id = c.node_id();
+        assert_eq!(id, c.get_node_addr().unwrap());
+        assert!(id.len() >= 32, "NodeId 应是完整公钥串, 实得 {id}");
+    }
+
+    /// 0.3.1: 非法 NodeId 必须如实报错，不许 panic；未预连接也不再报「节点未连接」。
+    #[tokio::test]
+    async fn invalid_node_id_is_error_not_panic() {
+        let mut c = IrohCommunicator::new(IrohConfig::default()).await.unwrap();
+        assert!(c.connect_to_node("not-a-key").await.is_err());
+        let msg = c.create_custom_message("did:a", None, "x", "upgrade-test");
+        let err = c.send_message("not-a-key", msg).await.unwrap_err().to_string();
+        assert!(err.contains("不是合法的 iroh 公钥"), "错误要能定位, 实得: {err}");
     }
 }
