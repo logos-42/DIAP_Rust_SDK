@@ -7,6 +7,7 @@
 use anyhow::{Result, anyhow};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::sync::mpsc;
 
@@ -109,8 +110,9 @@ pub struct IrohCommunicator {
     _config: IrohConfig,
     /// 活跃连接（使用EndpointId字符串作为键）
     connections: HashMap<String, (IrohConnection, EndpointAddr)>,
-    /// 消息接收通道
-    message_receiver: mpsc::UnboundedReceiver<IrohMessage>,
+    /// 消息接收通道（Arc<Mutex> 才能在 Send+Sync 的异步上下文里共享，
+    /// 否则 `receive_message(&mut self)` 会长期霸占 &mut，无法与发送并发）
+    message_receiver: Arc<tokio::sync::Mutex<mpsc::UnboundedReceiver<IrohMessage>>>,
     /// 消息发送通道
     message_sender: mpsc::UnboundedSender<IrohMessage>,
     /// 本机端点地址
@@ -145,7 +147,7 @@ impl IrohCommunicator {
             endpoint,
             _config: config,
             connections: HashMap::new(),
-            message_receiver,
+            message_receiver: Arc::new(tokio::sync::Mutex::new(message_receiver)),
             message_sender,
             node_addr,
         })
@@ -359,13 +361,19 @@ impl IrohCommunicator {
         });
     }
 
-    /// 接收消息
-    pub async fn receive_message(&mut self) -> Option<IrohMessage> {
-        self.message_receiver.recv().await
+    /// 接收消息（&self：内部 channel 加锁，可与发送并发）
+    pub async fn receive_message(&self) -> Option<IrohMessage> {
+        self.message_receiver.lock().await.recv().await
+    }
+
+    /// 非阻塞取一条消息（后台轮询用，不占住接收通道）
+    pub fn try_receive_message(&self) -> Option<IrohMessage> {
+        let mut g = self.message_receiver.try_lock().ok()?;
+        g.try_recv().ok()
     }
 
     /// 启动消息监听器
-    pub async fn start_message_listener(&mut self) -> Result<()> {
+    pub async fn start_message_listener(&self) -> Result<()> {
         log::info!("🎧 启动Iroh消息监听器");
         
         // 监听传入的连接
