@@ -176,6 +176,32 @@ impl IrohCommunicator {
         self.node_addr.id.to_string()
     }
 
+    /// 完整端点地址（JSON 可交换）: 含 NodeId + 已探测到的 IP/relay。
+    ///
+    /// 2026-11-11: 只交换 NodeId 时，没有 relay/discovery 会报
+    /// "No addressing information available"；交换这个地址串即可直连（同网段/公网可达）。
+    pub fn address_json(&self) -> serde_json::Value {
+        serde_json::to_value(&self.node_addr).unwrap_or(serde_json::Value::Null)
+    }
+
+    /// 用对方给来的完整地址 JSON 建连。
+    pub async fn connect_to_addr_json(&mut self, addr: serde_json::Value) -> Result<String> {
+        let a: EndpointAddr =
+            serde_json::from_value(addr).map_err(|e| anyhow!("EndpointAddr JSON 不合法: {e}"))?;
+        self.connect_to_node_with_addr(a).await
+    }
+
+    /// 用对方给来的完整地址 JSON 直接发消息（不要求预先 connect）。
+    pub async fn send_to_addr_json(
+        &self,
+        addr: serde_json::Value,
+        message: IrohMessage,
+    ) -> Result<()> {
+        let a: EndpointAddr =
+            serde_json::from_value(addr).map_err(|e| anyhow!("EndpointAddr JSON 不合法: {e}"))?;
+        self.send_message_with_addr(a, message).await
+    }
+
     /// 连接到远程节点（使用 EndpointAddr 对象, iroh 1.4 API）
     pub async fn connect_to_node_with_addr(&mut self, remote_addr: EndpointAddr) -> Result<String> {
         let remote_node_id = remote_addr.id.to_string();
@@ -514,5 +540,27 @@ mod upgrade_guards {
         let msg = c.create_custom_message("did:a", None, "x", "upgrade-test");
         let err = c.send_message("not-a-key", msg).await.unwrap_err().to_string();
         assert!(err.contains("不是合法的 iroh 公钥"), "错误要能定位, 实得: {err}");
+    }
+}
+
+#[cfg(test)]
+mod address_guards {
+    use super::*;
+
+    /// 0.3.4: 地址 JSON 必须带 id（可交换），垃圾 JSON 必须报错而不是 panic。
+    #[tokio::test]
+    async fn address_json_roundtrip_and_rejects_garbage() {
+        let mut c = IrohCommunicator::new(IrohConfig::default()).await.unwrap();
+        let j = c.address_json();
+        assert!(j["id"].is_string(), "地址 JSON 缺 id: {j}");
+        assert!(c
+            .connect_to_addr_json(serde_json::json!({ "bad": 1 }))
+            .await
+            .is_err());
+        let msg = c.create_custom_message("did:a", None, "x", "t");
+        assert!(c
+            .send_to_addr_json(serde_json::json!({ "bad": 1 }), msg)
+            .await
+            .is_err());
     }
 }
